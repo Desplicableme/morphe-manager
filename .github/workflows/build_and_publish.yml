@@ -61,19 +61,22 @@ jobs:
           chmod +x ./gradlew
           ./gradlew :app:testDebugUnitTest --stacktrace
 
-      - name: Build Debug APK
+      - name: Build Release APK
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           _JAVA_OPTIONS: "-Djava.awt.headless=true"
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleDebug --stacktrace
+          ./gradlew assembleRelease --stacktrace
 
       - name: Prepare APK Release Assets
         id: prepare_apk
         run: |
           mkdir -p release_assets
-          APK_FILE=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
+          APK_FILE=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          if [ -z "$APK_FILE" ]; then
+            APK_FILE=$(find app/build/outputs/apk -name "*.apk" | head -n 1)
+          fi
           if [ -z "$APK_FILE" ]; then
             echo "Error: No APK file found!"
             exit 1
@@ -87,13 +90,13 @@ jobs:
             fi
           fi
 
-          TARGET_APK="release_assets/morphe-manager-${VERSION}-enhanced-debug.apk"
+          TARGET_APK="release_assets/morphe-manager-${VERSION}-enhanced.apk"
           cp "$APK_FILE" "$TARGET_APK"
           echo "apk_path=$TARGET_APK" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
           sha256sum "$TARGET_APK" > "${TARGET_APK}.sha256"
-          echo "Prepared APK:"
+          echo "Prepared Release APK:"
           ls -lh release_assets/
 
       - name: Upload APK as Workflow Artifact
