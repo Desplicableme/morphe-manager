@@ -1,0 +1,158 @@
+name: Build & Publish Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release Tag (leave empty for auto v1.35.0-enhanced)'
+        required: false
+        default: ''
+      release_title:
+        description: 'Release Title (optional)'
+        required: false
+        default: ''
+      prerelease:
+        description: 'Mark as pre-release'
+        type: boolean
+        default: false
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+
+permissions:
+  contents: write
+  packages: read
+
+concurrency:
+  group: build-publish-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-publish:
+    name: Build & Publish APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Run Unit Tests
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          _JAVA_OPTIONS: "-Djava.awt.headless=true"
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :app:testDebugUnitTest --stacktrace
+
+      - name: Build Debug APK
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          _JAVA_OPTIONS: "-Djava.awt.headless=true"
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --stacktrace
+
+      - name: Prepare APK Release Assets
+        id: prepare_apk
+        run: |
+          mkdir -p release_assets
+          APK_FILE=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
+          if [ -z "$APK_FILE" ]; then
+            echo "Error: No APK file found!"
+            exit 1
+          fi
+
+          VERSION="1.35.0"
+          if [ -f "app-release.json" ]; then
+            PARSED_VER=$(grep -o '"version": "[^"]*"' app-release.json | cut -d'"' -f4)
+            if [ -n "$PARSED_VER" ]; then
+              VERSION="$PARSED_VER"
+            fi
+          fi
+
+          TARGET_APK="release_assets/morphe-manager-${VERSION}-enhanced-debug.apk"
+          cp "$APK_FILE" "$TARGET_APK"
+          echo "apk_path=$TARGET_APK" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+          sha256sum "$TARGET_APK" > "${TARGET_APK}.sha256"
+          echo "Prepared APK:"
+          ls -lh release_assets/
+
+      - name: Upload APK as Workflow Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: morphe-manager-enhanced-apk
+          path: release_assets/*
+
+      - name: Determine Release Tag and Title
+        id: release_meta
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.tag_name }}" ]; then
+            TAG="${{ inputs.tag_name }}"
+            TITLE="${{ inputs.release_title }}"
+            [ -z "$TITLE" ] && TITLE="Morphe Manager ${TAG}"
+          elif [ "${{ startsWith(github.ref, 'refs/tags/v') }}" = "true" ]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+            TITLE="Morphe Manager ${TAG}"
+          else
+            TAG="v${{ steps.prepare_apk.outputs.version }}-enhanced"
+            TITLE="Morphe Manager v${{ steps.prepare_apk.outputs.version }} (Enhanced Edition)"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "title=$TITLE" >> "$GITHUB_OUTPUT"
+
+      - name: Publish or Update GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.release_meta.outputs.tag }}
+          TITLE: ${{ steps.release_meta.outputs.title }}
+        run: |
+          echo "Publishing to Release Tag: $TAG ($TITLE)"
+
+          cat << 'EOF' > release_notes.md
+          # Morphe Manager Enhanced Edition
+
+          An enhanced, fully self-contained build of Morphe Manager with an in-built APKMirror downloader, in-app WebView verification, installed split APK extraction, and storage cleanup suite.
+
+          ### 🚀 Features Included:
+          - 📥 **In-Built APKMirror Downloader**: Direct multi-hop crawling to download APK and APKM/XAPK bundles within Morphe.
+          - 🛡️ **In-App WebView Verification**: Complete verification or download prompts seamlessly without leaving the app.
+          - ⚡ **Split APK / Installed App Extraction**: Prioritizes extracting base and split APKs from installed apps using `PackageManager`.
+          - 🧹 **Storage Suite**: 1-tap Quick Clean and opt-in automated post-patch deletion of original APKs and cache.
+
+          ### 📦 Verification & Checksums
+          Refer to the attached `.sha256` checksum file to verify integrity.
+          EOF
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists. Updating release notes and assets..."
+            gh release edit "$TAG" --title "$TITLE" --notes-file release_notes.md || true
+            gh release upload "$TAG" release_assets/* --clobber
+          else
+            echo "Creating new release $TAG..."
+            gh release create "$TAG" release_assets/* \
+              --title "$TITLE" \
+              --notes-file release_notes.md \
+              --latest
+          fi
+
+          echo "Release published successfully:"
+          gh release view "$TAG"

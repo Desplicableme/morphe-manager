@@ -27,7 +27,7 @@
 # 💊 Morphe (Enhanced Edition)
 
 [![Release](https://img.shields.io/github/v/release/Desplicableme/morphe-manager?color=blue&label=Latest%20Enhanced%20Build)](https://github.com/Desplicableme/morphe-manager/releases/latest)
-[![Build Status](https://img.shields.io/github/actions/workflow/status/Desplicableme/morphe-manager/build_enhanced_apk.yml?label=Build)](https://github.com/Desplicableme/morphe-manager/actions)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/Desplicableme/morphe-manager/build_and_publish.yml?label=Build%20%26%20Publish)](https://github.com/Desplicableme/morphe-manager/actions)
 [![Upstream Sync](https://img.shields.io/github/actions/workflow/status/Desplicableme/morphe-manager/sync_upstream.yml?label=Upstream%20Sync)](https://github.com/Desplicableme/morphe-manager/actions)
 
 > Enhanced, fully self-contained fork of [Morphe](https://github.com/MorpheApp/morphe-manager) with an **in-built APKMirror downloader**, **split APK extraction**, and **automated storage cleanup**.
