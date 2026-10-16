@@ -7,13 +7,15 @@ package app.morphe.manager.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.morphe.manager.domain.manager.PreferencesManager
 import app.morphe.manager.domain.repository.StorageStats
 import app.morphe.manager.domain.repository.StorageStatsRepository
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 class StorageManagementViewModel(
-    private val storageStatsRepository: StorageStatsRepository
+    private val storageStatsRepository: StorageStatsRepository,
+    val prefs: PreferencesManager
 ) : ViewModel() {
 
     val stats: StateFlow<StorageStats> = storageStatsRepository.stats
@@ -39,4 +41,13 @@ class StorageManagementViewModel(
     fun clearAllCaches(onDone: (Long) -> Unit = {}) = viewModelScope.launch {
         onDone(storageStatsRepository.clearAllCaches())
     }
+
+    fun clearOriginalApks(onDone: (Long) -> Unit = {}) = viewModelScope.launch {
+        onDone(storageStatsRepository.clearOriginalApks())
+    }
+
+    fun clearAllCachesAndOriginals(onDone: (Long) -> Unit = {}) = viewModelScope.launch {
+        onDone(storageStatsRepository.clearAllCachesAndOriginals())
+    }
 }
+

@@ -63,7 +63,8 @@ data class StorageStats(
  */
 class StorageStatsRepository(
     private val app: Application,
-    private val filesystem: Filesystem
+    private val filesystem: Filesystem,
+    private val originalApkRepository: OriginalApkRepository
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -127,6 +128,19 @@ class StorageStatsRepository(
             clearPatcherWorkspace() +
             clearTemporary()
     }
+
+    /** Deletes all original APK files and records. */
+    suspend fun clearOriginalApks(): Long = withContext(Dispatchers.IO) {
+        val freed = originalApkRepository.deleteAll()
+        refresh()
+        freed
+    }
+
+    /** Wipes all caches and original APKs together. */
+    suspend fun clearAllCachesAndOriginals(): Long = withContext(Dispatchers.IO) {
+        clearAllCaches() + clearOriginalApks()
+    }
+
 
     private suspend fun computeStats(): StorageStats = withContext(Dispatchers.IO) {
         StorageStats(

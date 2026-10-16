@@ -11,6 +11,7 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.util.Log
+import java.io.File
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -22,6 +23,9 @@ import app.morphe.manager.data.room.apps.installed.InstallType
 import app.morphe.manager.domain.apk.InstalledApkInfo
 import app.morphe.manager.domain.apk.LocalApkSources
 import app.morphe.manager.domain.apk.SavedApkInfo
+import app.morphe.manager.network.apkmirror.ApkMirrorDownloader
+import app.morphe.manager.network.apkmirror.ApkMirrorDownloadProgress
+import app.morphe.manager.network.apkmirror.CloudflareVerificationException
 import app.morphe.manager.domain.batch.*
 import app.morphe.manager.domain.bundles.AppVersionCatalog
 import app.morphe.manager.domain.bundles.BundledAppTarget
@@ -56,7 +60,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import java.io.File
 
 /**
  * Live patch selection for one queued app while its editor is open.
@@ -225,11 +228,23 @@ class BatchPatcherViewModel : ViewModel(), KoinComponent, ApkDownloadHelperHost 
     private val versionCatalog: AppVersionCatalog by inject()
     private val localApkSources: LocalApkSources by inject()
     private val prefs: PreferencesManager by inject()
+    private val apkMirrorDownloader: ApkMirrorDownloader by inject()
 
     val state = coordinator.state
 
     /** Notification and tour prompts raised once the queue installs or saves an app. */
     val postPatchPrompts = PostPatchPrompts(app, prefs, viewModelScope)
+
+    // In-built download state for batch items
+    var isApkMirrorDownloading by mutableStateOf(false)
+    var apkMirrorDownloadProgress by mutableStateOf<Float?>(null)
+    var apkMirrorDownloadStatus by mutableStateOf("")
+    var apkMirrorDownloadSpeed by mutableStateOf(0L)
+    var apkMirrorDownloadBytes by mutableStateOf(0L to 0L)
+    var apkMirrorDownloadingItem: BatchPatchItem? by mutableStateOf(null)
+    private var apkMirrorDownloadJob: kotlinx.coroutines.Job? = null
+    var showApkMirrorVerificationDialog by mutableStateOf(false)
+    var apkMirrorVerificationUrl by mutableStateOf<String?>(null)
 
     /** Package the attach-APK picker was opened for, null when no picker is pending. */
     var attachTarget: String? by mutableStateOf(null)
@@ -290,9 +305,8 @@ class BatchPatcherViewModel : ViewModel(), KoinComponent, ApkDownloadHelperHost 
                 recommended = recommended,
                 compatible = compatible,
                 saved = withContext(Dispatchers.IO) { localApkSources.saved(item.packageName) },
-                // The installed source is an expert-mode offer, and only for a version the
-                // patches target: the two conditions the single-app flow puts on the button
-                installed = device.apk.takeIf { expertMode }.patchableBy(compatible),
+                // The installed source prioritizes the device's installed APK/split APK
+                installed = device.apk?.let { it.patchableBy(compatible) ?: it },
                 installedVersion = device.version,
                 hasStockInstall = device.hasStockInstall,
                 selectedVersion = recommended
@@ -381,6 +395,178 @@ class BatchPatcherViewModel : ViewModel(), KoinComponent, ApkDownloadHelperHost 
 
     fun dismissAttachPrompt() {
         attachPrompt = null
+    }
+
+    /**
+     * Cancels any active in-built APKMirror download.
+     */
+    fun cancelApkMirrorDownload() {
+        apkMirrorDownloadJob?.cancel()
+        apkMirrorDownloadJob = null
+        isApkMirrorDownloading = false
+        apkMirrorDownloadProgress = null
+        apkMirrorDownloadStatus = ""
+        apkMirrorDownloadingItem = null
+    }
+
+    /**
+     * Starts an in-built download of the APK or APK bundle from APKMirror for a batch item.
+     */
+    fun startInBuiltDownload(
+        item: BatchPatchItem? = null,
+        overrideVersion: String? = null,
+        overrideUrl: String? = null
+    ) {
+        val search = apkSearch
+        val targetItem = item ?: search?.item ?: attachPrompt ?: return
+        val version = overrideVersion ?: search?.version
+        val url = overrideUrl ?: search?.url ?: downloadUrlResolver.apiSearchUrl(targetItem.packageName, version)
+
+        apkSearch = null
+        attachPrompt = null
+        apkMirrorDownloadingItem = targetItem
+
+        apkMirrorDownloadJob?.cancel()
+        apkMirrorDownloadJob = viewModelScope.launch {
+            isApkMirrorDownloading = true
+            apkMirrorDownloadProgress = null
+            apkMirrorDownloadStatus = app.getString(R.string.home_download_inbuilt_starting)
+            apkMirrorDownloadSpeed = 0L
+            apkMirrorDownloadBytes = 0L to 0L
+
+            try {
+                val bundleMetadata = patchBundleRepository.appMetadata.value[targetItem.packageName]
+                val isBundleRequired = bundleMetadata?.apkFileType?.isApk == false
+
+                val downloadedFile = apkMirrorDownloader.download(
+                    initialUrl = url,
+                    packageName = targetItem.packageName,
+                    versionName = version,
+                    isBundleRequired = isBundleRequired,
+                    onProgress = { progress ->
+                        when (progress) {
+                            is ApkMirrorDownloadProgress.Resolving -> {
+                                apkMirrorDownloadStatus = progress.message
+                                apkMirrorDownloadProgress = null
+                            }
+                            is ApkMirrorDownloadProgress.Downloading -> {
+                                apkMirrorDownloadProgress = progress.progress
+                                apkMirrorDownloadSpeed = progress.speedBytesPerSec
+                                val downloadedMb = progress.bytesDownloaded / (1024f * 1024f)
+                                apkMirrorDownloadStatus = if (progress.totalBytes != null && progress.totalBytes > 0) {
+                                    val totalMb = progress.totalBytes / (1024f * 1024f)
+                                    val percent = ((progress.progress ?: 0f) * 100).toInt()
+                                    apkMirrorDownloadBytes = progress.bytesDownloaded to progress.totalBytes
+                                    "Downloading: %.1f MB / %.1f MB (%d%%)".format(downloadedMb, totalMb, percent)
+                                } else {
+                                    apkMirrorDownloadBytes = progress.bytesDownloaded to 0L
+                                    "Downloading: %.1f MB".format(downloadedMb)
+                                }
+                            }
+                            is ApkMirrorDownloadProgress.Completed -> {
+                                apkMirrorDownloadStatus = app.getString(R.string.home_download_inbuilt_processing)
+                            }
+                        }
+                    }
+                )
+
+                isApkMirrorDownloading = false
+                apkMirrorDownloadingItem = null
+                coordinator.attachApk(targetItem.id, downloadedFile)
+            } catch (_: kotlinx.coroutines.CancellationException) {
+                Log.i(tag, "In-built download cancelled")
+                isApkMirrorDownloading = false
+                apkMirrorDownloadingItem = null
+            } catch (e: CloudflareVerificationException) {
+                Log.w(tag, "Batch item download encountered Cloudflare challenge: ${e.verificationUrl}")
+                isApkMirrorDownloading = false
+                apkMirrorVerificationUrl = e.verificationUrl
+                showApkMirrorVerificationDialog = true
+            } catch (e: Exception) {
+                Log.e(tag, "In-built download failed", e)
+                isApkMirrorDownloading = false
+                apkMirrorDownloadingItem = null
+                app.toast(app.getString(R.string.home_download_inbuilt_failed, e.message ?: "Network error"))
+            }
+        }
+    }
+
+    fun startInBuiltDirectDownload(directUrl: String, targetItem: BatchPatchItem) {
+        apkMirrorDownloadingItem = targetItem
+        apkMirrorDownloadJob?.cancel()
+        apkMirrorDownloadJob = viewModelScope.launch {
+            isApkMirrorDownloading = true
+            apkMirrorDownloadProgress = null
+            apkMirrorDownloadStatus = app.getString(R.string.home_download_inbuilt_starting)
+            apkMirrorDownloadSpeed = 0L
+            apkMirrorDownloadBytes = 0L to 0L
+
+            try {
+                val downloadedFile = apkMirrorDownloader.downloadFromDirectUrl(
+                    downloadUrl = directUrl,
+                    packageName = targetItem.packageName,
+                    onProgress = { progress ->
+                        when (progress) {
+                            is ApkMirrorDownloadProgress.Resolving -> {
+                                apkMirrorDownloadStatus = progress.message
+                                apkMirrorDownloadProgress = null
+                            }
+                            is ApkMirrorDownloadProgress.Downloading -> {
+                                apkMirrorDownloadProgress = progress.progress
+                                apkMirrorDownloadSpeed = progress.speedBytesPerSec
+                                val downloadedMb = progress.bytesDownloaded / (1024f * 1024f)
+                                apkMirrorDownloadStatus = if (progress.totalBytes != null && progress.totalBytes > 0) {
+                                    val totalMb = progress.totalBytes / (1024f * 1024f)
+                                    val percent = ((progress.progress ?: 0f) * 100).toInt()
+                                    apkMirrorDownloadBytes = progress.bytesDownloaded to progress.totalBytes
+                                    "Downloading: %.1f MB / %.1f MB (%d%%)".format(downloadedMb, totalMb, percent)
+                                } else {
+                                    apkMirrorDownloadBytes = progress.bytesDownloaded to 0L
+                                    "Downloading: %.1f MB".format(downloadedMb)
+                                }
+                            }
+                            is ApkMirrorDownloadProgress.Completed -> {
+                                apkMirrorDownloadStatus = app.getString(R.string.home_download_inbuilt_processing)
+                            }
+                        }
+                    }
+                )
+
+                isApkMirrorDownloading = false
+                apkMirrorDownloadingItem = null
+                coordinator.attachApk(targetItem.id, downloadedFile)
+            } catch (_: kotlinx.coroutines.CancellationException) {
+                Log.i(tag, "In-built direct download cancelled")
+                isApkMirrorDownloading = false
+                apkMirrorDownloadingItem = null
+            } catch (e: CloudflareVerificationException) {
+                Log.w(tag, "Cloudflare re-challenge on direct URL: ${e.verificationUrl}")
+                isApkMirrorDownloading = false
+                apkMirrorVerificationUrl = e.verificationUrl
+                showApkMirrorVerificationDialog = true
+            } catch (e: Exception) {
+                Log.e(tag, "In-built direct download failed", e)
+                isApkMirrorDownloading = false
+                apkMirrorDownloadingItem = null
+                app.toast(app.getString(R.string.home_download_inbuilt_failed, e.message ?: "Network error"))
+            }
+        }
+    }
+
+    fun onApkMirrorVerificationResolved(directUrl: String? = null) {
+        showApkMirrorVerificationDialog = false
+        val targetItem = apkMirrorDownloadingItem ?: return
+        if (!directUrl.isNullOrBlank()) {
+            startInBuiltDirectDownload(directUrl, targetItem)
+        } else {
+            startInBuiltDownload(targetItem, null, apkMirrorVerificationUrl)
+        }
+    }
+
+    fun dismissApkMirrorVerification() {
+        showApkMirrorVerificationDialog = false
+        apkMirrorVerificationUrl = null
+        apkMirrorDownloadingItem = null
     }
 
     override val helperSignatureCheckAvailable: Boolean
@@ -658,16 +844,36 @@ class BatchPatcherViewModel : ViewModel(), KoinComponent, ApkDownloadHelperHost 
         true
     }
 
+    override fun onCleared() {
+        super.onCleared()
+        cancelApkMirrorDownload()
+    }
+
     private fun copyToWorkspace(uri: Uri): File? = try {
-        val displayName = app.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-            val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-            if (cursor.moveToFirst() && index != -1) cursor.getString(index) else null
-        }
-        val extension = displayName?.substringAfterLast('.', "apk")?.lowercase() ?: "apk"
+        val displayName = if (uri.scheme == "file") {
+            uri.lastPathSegment
+        } else {
+            runCatching {
+                app.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (cursor.moveToFirst() && index != -1) cursor.getString(index) else null
+                }
+            }.getOrNull()
+        } ?: uri.lastPathSegment ?: "batch_input_${System.currentTimeMillis()}"
+
+        val extension = displayName.substringAfterLast('.', "apk").lowercase()
         val target = fs.uiTempDir.resolve("batch_input_${System.currentTimeMillis()}.$extension")
 
-        val copied = app.contentResolver.openInputStream(uri)?.use { input ->
-            target.outputStream().use { output -> input.copyTo(output) }
+        val copied = if (uri.scheme == "file") {
+            val sourceFile = File(uri.path ?: "")
+            if (sourceFile.exists()) {
+                sourceFile.copyTo(target, overwrite = true)
+                target.length()
+            } else null
+        } else {
+            app.contentResolver.openInputStream(uri)?.use { input ->
+                target.outputStream().use { output -> input.copyTo(output) }
+            }
         }
         if (copied == null || copied == 0L) {
             target.delete()

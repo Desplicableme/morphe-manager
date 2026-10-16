@@ -84,6 +84,7 @@ class PatcherViewModel(
     private val prefs: PreferencesManager by inject()
     private val patchOptionsPrefs: PatchOptionsPreferencesManager by inject()
     private val originalApkRepository: OriginalApkRepository by inject()
+    private val storageStatsRepository: StorageStatsRepository by inject()
     private val installerManager: InstallerManager by inject()
     private val savedStateHandle: SavedStateHandle = get()
 
@@ -685,6 +686,16 @@ class PatcherViewModel(
      */
     private suspend fun saveOriginalApkIfNeeded() = saveOriginalApkMutex.withLock {
         try {
+            if (prefs.autoDeleteOriginalApks.get()) {
+                Log.d(TAG, "Auto-delete original APKs is enabled, purging original APK for $packageName")
+                originalApkRepository.delete(packageName)
+                if ((input.selectedApp as? SelectedApp.Local)?.temporary == true) {
+                    inputFile?.takeIf { it.exists() }?.delete()
+                    inputFile = null
+                }
+                return@withLock
+            }
+
             // Determine which file to save.
             // For SelectedApp.Local with a split archive: inputFile is updated to the merged
             // mono-APK via setInputFile(merged=true) after prepareIfNeeded() completes, so
@@ -1034,6 +1045,10 @@ class PatcherViewModel(
                         viewModelScope.launch(Dispatchers.IO) {
                             try {
                                 saveOriginalApkIfNeeded()
+                                if (prefs.autoCleanCacheAfterPatching.get()) {
+                                    Log.d(TAG, "Auto-clean cache is enabled, clearing temporary cache")
+                                    storageStatsRepository.clearTemporary()
+                                }
                             } finally {
                                 withContext(Dispatchers.Main) {
                                     // Delete temporary input file after saving
@@ -1188,7 +1203,7 @@ class PatcherViewModel(
     }
 
     private fun cleanupTemporaryInput() {
-        if (input.selectedApp is SelectedApp.Local && input.selectedApp.temporary) {
+        if ((input.selectedApp as? SelectedApp.Local)?.temporary == true || prefs.autoDeleteOriginalApks.getBlocking()) {
             inputFile?.takeIf { it.exists() }?.delete()
             inputFile = null
             patchRun.updateSplitRequirement(null)

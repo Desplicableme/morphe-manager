@@ -25,6 +25,7 @@ import app.morphe.manager.util.formatBytes
 import app.morphe.manager.util.formatUsedFree
 import app.morphe.manager.util.openAppDetailsSettings
 import app.morphe.manager.util.toast
+import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
@@ -46,6 +47,8 @@ fun StorageManagementDialog(
 
     var apkDialog by remember { mutableStateOf<ApkManagementType?>(null) }
     var showClearAllConfirm by remember { mutableStateOf(false) }
+    var showClearOriginalApksConfirm by remember { mutableStateOf(false) }
+    var showQuickCleanConfirm by remember { mutableStateOf(false) }
     // Incremented on manual refresh to re-key the histogram and replay its entry animation.
     var histogramNonce by remember { mutableIntStateOf(0) }
 
@@ -73,6 +76,44 @@ fun StorageManagementDialog(
             onDismiss = { showClearAllConfirm = false },
             // Empty caches free nothing, so they are left out
             items = listOf(
+                Triple(Icons.Outlined.CloudDownload, R.string.settings_system_storage_http_cache_title, stats.httpCacheBytes),
+                Triple(Icons.Outlined.Share, R.string.settings_system_storage_installer_cache_title, stats.installerShareBytes),
+                Triple(Icons.Outlined.Build, R.string.settings_system_storage_patcher_workspace_title, stats.patcherWorkspaceBytes),
+                Triple(Icons.Outlined.HourglassEmpty, R.string.settings_system_storage_temporary_title, stats.temporaryBytes)
+            ).filter { (_, _, bytes) -> bytes > 0 }.map { (icon, title, bytes) ->
+                ConfirmItem(icon, stringResource(title), context.formatBytes(bytes))
+            }
+        )
+    }
+
+    if (showClearOriginalApksConfirm) {
+        ConfirmDialog(
+            title = stringResource(R.string.settings_system_storage_clear_original_apks),
+            message = stringResource(R.string.settings_system_storage_clear_original_apks_desc),
+            primaryText = stringResource(R.string.clear),
+            onConfirm = {
+                showClearOriginalApksConfirm = false
+                viewModel.clearOriginalApks(onCleared)
+            },
+            onDismiss = { showClearOriginalApksConfirm = false },
+            items = listOf(
+                ConfirmItem(Icons.Outlined.Storage, stringResource(R.string.settings_system_original_apks_title), context.formatBytes(stats.originalApksBytes))
+            )
+        )
+    }
+
+    if (showQuickCleanConfirm) {
+        ConfirmDialog(
+            title = stringResource(R.string.settings_system_storage_quick_clean_title),
+            message = stringResource(R.string.settings_system_storage_quick_clean_desc),
+            primaryText = stringResource(R.string.settings_system_storage_quick_clean_button),
+            onConfirm = {
+                showQuickCleanConfirm = false
+                viewModel.clearAllCachesAndOriginals(onCleared)
+            },
+            onDismiss = { showQuickCleanConfirm = false },
+            items = listOf(
+                Triple(Icons.Outlined.Storage, R.string.settings_system_original_apks_title, stats.originalApksBytes),
                 Triple(Icons.Outlined.CloudDownload, R.string.settings_system_storage_http_cache_title, stats.httpCacheBytes),
                 Triple(Icons.Outlined.Share, R.string.settings_system_storage_installer_cache_title, stats.installerShareBytes),
                 Triple(Icons.Outlined.Build, R.string.settings_system_storage_patcher_workspace_title, stats.patcherWorkspaceBytes),
@@ -151,6 +192,55 @@ fun StorageManagementDialog(
             }
 
             SettingsGroup {
+                val autoDeleteOriginalApks by viewModel.prefs.autoDeleteOriginalApks.getAsState()
+                val autoCleanCache by viewModel.prefs.autoCleanCacheAfterPatching.getAsState()
+                val scope = rememberCoroutineScope()
+
+                SettingsSwitchItem(
+                    checked = autoDeleteOriginalApks,
+                    onToggle = { scope.launch { viewModel.prefs.autoDeleteOriginalApks.update(!autoDeleteOriginalApks) } },
+                    title = stringResource(R.string.settings_system_storage_auto_delete_title),
+                    subtitle = stringResource(R.string.settings_system_storage_auto_delete_desc),
+                    icon = Icons.Outlined.DeleteSweep
+                )
+                SettingsDivider()
+                SettingsSwitchItem(
+                    checked = autoCleanCache,
+                    onToggle = { scope.launch { viewModel.prefs.autoCleanCacheAfterPatching.update(!autoCleanCache) } },
+                    title = stringResource(R.string.settings_system_storage_auto_clean_cache_title),
+                    subtitle = stringResource(R.string.settings_system_storage_auto_clean_cache_desc),
+                    icon = Icons.Outlined.DeleteOutline
+                )
+            }
+
+            SettingsGroup {
+                CacheActionRow(
+                    icon = Icons.Outlined.DeleteForever,
+                    accentColor = MaterialTheme.colorScheme.primary,
+                    title = stringResource(R.string.settings_system_storage_quick_clean_title),
+                    description = stringResource(R.string.settings_system_storage_quick_clean_desc),
+                    bytes = stats.totalCacheBytes + stats.originalApksBytes,
+                    onClear = { showQuickCleanConfirm = true }
+                )
+                SettingsDivider()
+                CacheActionRow(
+                    icon = Icons.Outlined.DeleteSweep,
+                    accentColor = MaterialTheme.colorScheme.error,
+                    title = stringResource(R.string.settings_system_storage_clear_all),
+                    description = stringResource(R.string.settings_system_storage_clear_all_description),
+                    bytes = stats.totalCacheBytes,
+                    onClear = { showClearAllConfirm = true }
+                )
+                SettingsDivider()
+                CacheActionRow(
+                    icon = Icons.Outlined.Storage,
+                    accentColor = StorageColors.OriginalApks,
+                    title = stringResource(R.string.settings_system_storage_clear_original_apks),
+                    description = stringResource(R.string.settings_system_storage_clear_original_apks_desc),
+                    bytes = stats.originalApksBytes,
+                    onClear = { showClearOriginalApksConfirm = true }
+                )
+                SettingsDivider()
                 CacheActionRow(
                     icon = Icons.Outlined.CloudDownload,
                     accentColor = StorageColors.HttpCache,
@@ -185,15 +275,6 @@ fun StorageManagementDialog(
                     description = stringResource(R.string.settings_system_storage_temporary_description),
                     bytes = stats.temporaryBytes,
                     onClear = { viewModel.clearTemporary(onCleared) }
-                )
-                SettingsDivider()
-                CacheActionRow(
-                    icon = Icons.Outlined.DeleteSweep,
-                    accentColor = MaterialTheme.colorScheme.error,
-                    title = stringResource(R.string.settings_system_storage_clear_all),
-                    description = stringResource(R.string.settings_system_storage_clear_all_description),
-                    bytes = stats.totalCacheBytes,
-                    onClear = { showClearAllConfirm = true }
                 )
             }
 

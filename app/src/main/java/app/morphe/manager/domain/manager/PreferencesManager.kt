@@ -185,6 +185,12 @@ class PreferencesManager(
     /** Persist the pre-patch APK so it can be reused for repatching without asking the user to reselect it. */
     val saveOriginalApks = booleanPreference("save_original_apks", true)
 
+    /** Automatically delete original APKs after patching to keep storage friendly. */
+    val autoDeleteOriginalApks = booleanPreference("auto_delete_original_apks", false)
+
+    /** Automatically clear temporary cache files after patching is complete. */
+    val autoCleanCacheAfterPatching = booleanPreference("auto_clean_cache_after_patching", false)
+
     /** Persist the post-patch APK so it can be exported or reinstalled after the patcher screen is closed. */
     val savePatchedApks = booleanPreference("save_patched_apks", true)
 
@@ -320,6 +326,8 @@ class PreferencesManager(
         val trustedApkDownloadHelpers: Set<String>? = null,
         val sourceBundleSortMode: String? = null,
         val saveOriginalApks: Boolean? = null,
+        val autoDeleteOriginalApks: Boolean? = null,
+        val autoCleanCacheAfterPatching: Boolean? = null,
         val savePatchedApks: Boolean? = null,
         val patcherCompletionSound: Boolean? = null,
         val patcherSuccessSoundUri: String? = null,
@@ -388,6 +396,8 @@ class PreferencesManager(
                 trustedApkDownloadHelpers = trustedApkDownloadHelpers.takeIf { patching },
                 sourceBundleSortMode = sourceBundleSortMode.takeIf { sources },
                 saveOriginalApks = saveOriginalApks.takeIf { patching },
+                autoDeleteOriginalApks = autoDeleteOriginalApks.takeIf { patching },
+                autoCleanCacheAfterPatching = autoCleanCacheAfterPatching.takeIf { patching },
                 savePatchedApks = savePatchedApks.takeIf { patching },
                 patcherCompletionSound = patcherCompletionSound.takeIf { patching },
                 patcherSuccessSoundUri = patcherSuccessSoundUri.takeIf { patching },
@@ -443,6 +453,8 @@ class PreferencesManager(
         trustedApkDownloadHelpers = trustedApkDownloadHelpers.get(),
         sourceBundleSortMode = sourceBundleSortMode.get(),
         saveOriginalApks = saveOriginalApks.get(),
+        autoDeleteOriginalApks = autoDeleteOriginalApks.get(),
+        autoCleanCacheAfterPatching = autoCleanCacheAfterPatching.get(),
         savePatchedApks = savePatchedApks.get(),
         patcherCompletionSound = patcherCompletionSound.get(),
         patcherSuccessSoundUri = patcherSuccessSoundUri.get(),
@@ -522,6 +534,8 @@ class PreferencesManager(
             }
         snapshot.sourceBundleSortMode?.let { sourceBundleSortMode.value = it }
         snapshot.saveOriginalApks?.let { saveOriginalApks.value = it }
+        snapshot.autoDeleteOriginalApks?.let { autoDeleteOriginalApks.value = it }
+        snapshot.autoCleanCacheAfterPatching?.let { autoCleanCacheAfterPatching.value = it }
         snapshot.savePatchedApks?.let { savePatchedApks.value = it }
         snapshot.patcherCompletionSound?.let { patcherCompletionSound.value = it }
         snapshot.patcherSuccessSoundUri?.let { patcherSuccessSoundUri.value = it }

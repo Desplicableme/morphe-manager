@@ -193,4 +193,24 @@ class OriginalApkRepository(
         }
         dao.delete(originalApk)
     }
+
+    /**
+     * Delete all original APKs from disk and clear database records.
+     * Returns total bytes freed.
+     */
+    suspend fun deleteAll(): Long = withContext(Dispatchers.IO) {
+        var bytesFreed = 0L
+        try {
+            originalApksDir.listFiles()?.forEach { file ->
+                bytesFreed += file.length()
+                file.delete()
+            }
+            dao.deleteAll()
+            Log.d(TAG, "Deleted all original APKs, freed $bytesFreed bytes")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to delete all original APKs", e)
+        }
+        bytesFreed
+    }
 }
+

@@ -1,4 +1,4 @@
-﻿<resources>
+<resources>
     <!-- Home Screen -->
     <string name="home_other_apps">Other apps</string>
     <string name="home_other_apps_action">Select other apps</string>
@@ -288,6 +288,23 @@ Anything you add from this website is used at your own risk"</string>
     <string name="home_download_instructions_destination">the download page</string>
     <string name="home_download_instructions_copy_link">Copy link</string>
     <string name="home_download_instructions_link_copied">Link copied</string>
+
+    <!-- In-built APKMirror Downloader -->
+    <string name="home_download_inbuilt_apk">Download APK</string>
+    <string name="home_download_inbuilt_bundle">Download APK Bundle</string>
+    <string name="home_download_inbuilt_title">Downloading %s</string>
+    <string name="home_download_inbuilt_starting">Connecting to APKMirror…</string>
+    <string name="home_download_inbuilt_processing">Processing downloaded APK…</string>
+    <string name="home_download_inbuilt_failed">Download failed: %s</string>
+    <string name="home_download_from_apkmirror">Download from APKMirror</string>
+    <string name="home_download_url_prompt_title">Download from URL</string>
+    <string name="home_download_url_prompt_description">Enter an APKMirror link to download and patch directly:</string>
+    <string name="home_download_url_prompt_hint">https://www.apkmirror.com/apk/…</string>
+    <string name="home_download_url_prompt_action">Download</string>
+    <string name="home_download_inbuilt_verification_title">APKMirror Verification</string>
+    <string name="home_download_inbuilt_verification_description">Cloudflare verification is active. Please complete the verification below if prompted to start the download.</string>
+    <string name="home_download_inbuilt_verification_continue">Continue download</string>
+    <string name="home_download_inbuilt_verification_solved">Verification passed. Ready to continue.</string>
 
     <!-- Home Screen - Dialog 3: File Picker Prompt -->
     <string name="home_file_picker_prompt_title">Select downloaded APK</string>
@@ -1519,8 +1536,29 @@ Do you still want to continue?"</string>
     <!-- Tour prompt dialog shown after first successful patch install -->
     <string name="tour_prompt_title">Quick feature tour</string>
     <string name="tour_prompt_desc">Want a quick tour of Morphe\'s key features?</string>
-    <!-- Label of a footer button beside "Skip". Keep it short, a longer one moves the buttons onto two rows -->
     <string name="tour_prompt_confirm">Show me around</string>
+    <!-- Label of a footer button beside "Skip". Keep it short, a longer one moves the buttons onto two rows -->
     <string name="onboarding_restart_title">Feature tour</string>
     <string name="onboarding_restart_desc">A guided tour of key features</string>
+
+    <!-- Installed App Extraction Priority -->
+    <string name="home_apk_extract_installed">Extract from installed app</string>
+    <string name="home_apk_extract_installed_split">Extract installed Split APK</string>
+    <string name="home_apk_extract_installed_apk">Extract installed APK</string>
+    <string name="home_apk_extract_priority_badge">Installed on device • Recommended</string>
+    <string name="home_apk_use_installed_unsupported">The installed version (%s) is not officially declared as supported. You can still extract and patch it by proceeding.</string>
+
+    <!-- Storage Management & Auto Deletion -->
+    <string name="settings_system_storage_auto_delete_title">Auto-delete original APKs</string>
+    <string name="settings_system_storage_auto_delete_desc">Automatically delete downloaded and temporary original APKs after patching to save device storage</string>
+    <string name="settings_system_storage_auto_clean_cache_title">Auto-clean caches after patching</string>
+    <string name="settings_system_storage_auto_clean_cache_desc">Automatically clear temporary workspace and downloader caches when patching completes</string>
+    <string name="settings_system_storage_automation_group">Storage Optimization</string>
+    <string name="settings_system_storage_clear_original_apks">Clear original APKs</string>
+    <string name="settings_system_storage_clear_original_apks_desc">Delete all retained and downloaded original APK files to free disk space</string>
+    <string name="settings_system_storage_clear_original_apks_confirm">Are you sure you want to delete all saved original APK files? This will free space, but repatching will require selecting or downloading the APK again.</string>
+    <string name="settings_system_storage_quick_clean_title">Quick storage cleanup</string>
+    <string name="settings_system_storage_quick_clean_desc">Wipe all caches and downloaded original APKs in one tap</string>
+    <string name="settings_system_storage_quick_clean_confirm">Are you sure you want to clean all caches and downloaded original APKs? This will reclaim maximum storage space.</string>
+    <string name="settings_system_storage_quick_clean_button">Clean everything</string>
 </resources>

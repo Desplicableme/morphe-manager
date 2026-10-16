@@ -29,6 +29,10 @@ interface OriginalApkDao {
     @Query("DELETE FROM original_apks WHERE package_name = :packageName")
     suspend fun deleteByPackage(packageName: String)
 
+    @Query("DELETE FROM original_apks")
+    suspend fun deleteAll()
+
     @Query("UPDATE original_apks SET last_used = :timestamp WHERE package_name = :packageName")
     suspend fun updateLastUsed(packageName: String, timestamp: Long = System.currentTimeMillis())
 }
+
