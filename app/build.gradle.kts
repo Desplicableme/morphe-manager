@@ -320,6 +320,12 @@ tasks {
         if (name.startsWith("lintVital")) {
             enabled = false
         }
+        if (name.startsWith("minify") && name.endsWith("WithR8")) {
+            doFirst {
+                file("${layout.buildDirectory.get()}/intermediates/merged_java_res/release/$name").mkdirs()
+                file("${layout.buildDirectory.get()}/intermediates/merged_java_res/release/minifyReleaseWithR8").mkdirs()
+            }
+        }
     }
 }
 

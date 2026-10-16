@@ -133,9 +133,13 @@ internal fun ApkAvailabilityDialog(
                         compatibleVersions.patchableAt(installedApkInfo.version, installedApkInfo.versionCode)
                     }
 
+                    val versionSuffix = if (installedApkInfo.version.isNotBlank() && installedApkInfo.version != "unknown") {
+                        "v${installedApkInfo.version}"
+                    } else null
+
                     AppDialogButton(
                         text = extractTitle,
-                        textSuffix = "v${installedApkInfo.version}",
+                        textSuffix = versionSuffix,
                         onClick = onUseInstalled,
                         icon = Icons.Outlined.PhoneAndroid,
                         modifier = Modifier.fillMaxWidth()

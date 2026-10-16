@@ -206,7 +206,12 @@ class LocalApkSources(
      */
     suspend fun installed(packageName: String): InstalledAppSource = try {
         val pkgInfo = pm.getPackageInfo(packageName)
-        val version = pkgInfo?.versionName?.takeUnless { it.isBlank() }
+        val appInfo = pkgInfo?.applicationInfo
+        val sourceDir = appInfo?.sourceDir?.takeIf { File(it).exists() }
+        var version = pkgInfo?.versionName?.takeUnless { it.isBlank() }
+        if (version == null && sourceDir != null) {
+            version = pm.getArchiveManifest(File(sourceDir))?.versionName?.takeUnless { it.isBlank() }
+        }
         // Read here rather than inside the patch state, because it is the one patched install
         // that leaves the app itself in place: the module overlays the archive, nothing else
         val mounted = pkgInfo != null && pm.hasSourceApkSignatureMismatch(packageName)
@@ -217,8 +222,6 @@ class LocalApkSources(
             InstalledPatchState.Patched -> InstalledAppSource(hasStockInstall = mounted)
 
             else -> {
-                val appInfo = pkgInfo.applicationInfo
-                val sourceDir = appInfo?.sourceDir?.takeIf { File(it).exists() }
                 val apk = if (sourceDir == null || version == null) {
                     null
                 } else {

@@ -160,6 +160,12 @@ class ApkMirrorDownloaderTest {
         """.trimIndent()
         val url2 = downloader.parseDownloadKeyPageUrlFromHtml(html2)
         assertEquals("https://www.apkmirror.com/download/?key=testkey&id=999", url2)
+
+        val htmlSingleQuote = """
+            <a class='downloadButton' href='/apk/google-inc/youtube/download/?key=singlequote'>Download</a>
+        """.trimIndent()
+        val urlSingle = downloader.parseDownloadKeyPageUrlFromHtml(htmlSingleQuote)
+        assertEquals("https://www.apkmirror.com/apk/google-inc/youtube/download/?key=singlequote", urlSingle)
     }
 
     @Test
@@ -181,6 +187,12 @@ class ApkMirrorDownloaderTest {
         """.trimIndent()
         val url3 = downloader.parseDownloadPhpUrlFromHtml(htmlReverse)
         assertEquals("https://www.apkmirror.com/wp-content/themes/APKMirror/download.php?id=777", url3)
+
+        val htmlPhpSingle = """
+            <a href='/wp-content/themes/APKMirror/download.php?id=888' id='download-link'>Click</a>
+        """.trimIndent()
+        val url4 = downloader.parseDownloadPhpUrlFromHtml(htmlPhpSingle)
+        assertEquals("https://www.apkmirror.com/wp-content/themes/APKMirror/download.php?id=888", url4)
     }
 
     @Test

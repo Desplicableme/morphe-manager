@@ -664,8 +664,8 @@ private fun FileEntryRow(
     val isDir = file.isDirectory
     val ext = if (isDir) "" else file.extension.lowercase()
     val isApk = ext in APK_EXTENSIONS
-    // Only standard .apk supports getPackageArchiveInfo; bundles (.apkm/.apks/.xapk) are ZIPs
-    val canLoadIcon = ext == "apk"
+    // Standard .apk and split bundles (.apkm/.apks/.xapk) can both be inspected for package info
+    val canLoadIcon = isApk
     val isImage = ext in IMAGE_EXTENSIONS
     val isSplitBundle = ext in SPLIT_ICON_EXTENSIONS
 

@@ -386,6 +386,7 @@ class HomeViewModel(
     private var apkMirrorDownloadJob: kotlinx.coroutines.Job? = null
     var showApkMirrorVerificationDialog by mutableStateOf(false)
     var apkMirrorVerificationUrl by mutableStateOf<String?>(null)
+    var apkMirrorVerificationPackage by mutableStateOf<String?>(null)
 
     // Error/warning dialogs
     var showUnsupportedVersionDialog by mutableStateOf<UnsupportedVersionDialogState?>(null)
@@ -1565,8 +1566,11 @@ class HomeViewModel(
                                 val appInfo = pkgInfo.applicationInfo ?: return@mapNotNull null
                                 val sourceDir = appInfo.sourceDir ?: return@mapNotNull null
                                 if (!File(sourceDir).exists()) return@mapNotNull null
-                                val version = pkgInfo.versionName?.takeUnless { it.isBlank() }
-                                    ?: return@mapNotNull null
+                                var version = pkgInfo.versionName?.takeUnless { it.isBlank() }
+                                if (version == null) {
+                                    version = pm.getArchiveManifest(File(sourceDir))?.versionName?.takeUnless { it.isBlank() }
+                                }
+                                if (version == null) return@mapNotNull null
                                 val label = with(pm) { pkgInfo.label() }
                                 val splitPaths = appInfo.splitSourceDirs
                                     ?.filter { File(it).exists() }
@@ -2708,11 +2712,14 @@ class HomeViewModel(
      * Clean up pending data.
      */
     fun cleanupPendingData(keepSelectedApp: Boolean = false, keepBundleUid: Boolean = false) {
-        pendingPackageName = null
-        pendingAppName = null
-        pendingRecommendedVersion = null
-        pendingCompatibleVersions = emptyList()
-        pendingSelectedDownloadVersion = null
+        if (!keepSelectedApp) {
+            pendingPackageName = null
+            pendingAppName = null
+            pendingRecommendedVersion = null
+            pendingCompatibleVersions = emptyList()
+            pendingSelectedDownloadVersion = null
+            pendingRepatchPackageName = null
+        }
         if (!keepBundleUid) pendingSelectedBundleUid = null
         resolvedDownloadUrl = null
         pendingSavedApkInfo = null
@@ -2726,9 +2733,6 @@ class HomeViewModel(
                 }
             }
             pendingSelectedApp = null
-            // Kept while the app is, because the dialogs that pause the flow resume into the
-            // same run, and it must still know which install it was aimed at
-            pendingRepatchPackageName = null
         }
         showApkAvailabilityDialog = false
         showDownloadInstructionsDialog = false
@@ -2813,6 +2817,7 @@ class HomeViewModel(
                 Log.w(tag, "In-built download encountered Cloudflare challenge: ${e.verificationUrl}")
                 isApkMirrorDownloading = false
                 apkMirrorVerificationUrl = e.verificationUrl
+                apkMirrorVerificationPackage = e.packageName ?: pendingPackageName
                 showApkMirrorVerificationDialog = true
             } catch (e: Exception) {
                 Log.e(tag, "In-built download failed", e)
@@ -2884,6 +2889,7 @@ class HomeViewModel(
                 Log.w(tag, "Cloudflare re-challenge on direct URL: ${e.verificationUrl}")
                 isApkMirrorDownloading = false
                 apkMirrorVerificationUrl = e.verificationUrl
+                apkMirrorVerificationPackage = e.packageName ?: pendingPackageName
                 showApkMirrorVerificationDialog = true
             } catch (e: Exception) {
                 Log.e(tag, "In-built direct download failed", e)
@@ -2899,7 +2905,7 @@ class HomeViewModel(
      */
     fun onApkMirrorVerificationResolved(directUrl: String? = null) {
         showApkMirrorVerificationDialog = false
-        val pkg = pendingPackageName ?: return
+        val pkg = pendingPackageName ?: apkMirrorVerificationPackage ?: return
         val version = (pendingSelectedDownloadVersion ?: pendingRecommendedVersion)?.version
 
         if (!directUrl.isNullOrBlank()) {
@@ -2915,6 +2921,7 @@ class HomeViewModel(
     fun dismissApkMirrorVerification() {
         showApkMirrorVerificationDialog = false
         apkMirrorVerificationUrl = null
+        apkMirrorVerificationPackage = null
         cleanupPendingData()
     }
 

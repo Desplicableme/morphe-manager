@@ -58,11 +58,11 @@ object SplitApkInspector {
         }
     }
 
-    private fun selectBestEntry(zip: ZipFile): ZipEntry? {
+    internal fun selectBestEntry(zip: ZipFile): ZipEntry? {
         val entries = SplitApkPreparer.splitModuleEntries(zip).toList()
         if (entries.isEmpty()) return null
 
-        val lowered = entries.associateWith { it.name.lowercase(Locale.ROOT) }
+        val lowered = entries.associateWith { it.name.substringAfterLast('/').lowercase(Locale.ROOT) }
         val baseEntry = lowered.entries.firstOrNull { (_, name) ->
             name.endsWith("base.apk") || "base-master" in name || "base-main" in name
         }?.key
@@ -89,7 +89,7 @@ object SplitApkInspector {
 
         return entries.minWithOrNull(
             compareBy<ZipEntry> { entry ->
-                val lower = entry.name.lowercase(Locale.ROOT)
+                val lower = entry.name.substringAfterLast('/').lowercase(Locale.ROOT)
                 when {
                     "base" in lower -> 0
                     "main" in lower || "master" in lower -> 1

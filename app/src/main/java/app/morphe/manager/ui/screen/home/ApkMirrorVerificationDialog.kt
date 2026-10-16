@@ -158,8 +158,12 @@ internal fun ApkMirrorVerificationDialog(
                                     val isChallengeTitle = title.contains("Just a moment", ignoreCase = true) ||
                                         title.contains("Cloudflare", ignoreCase = true) ||
                                         title.contains("Attention Required", ignoreCase = true)
+                                    val isChallengeUrl = url?.contains("challenges.cloudflare.com") == true ||
+                                        url?.contains("cf-mitigated") == true
 
-                                    if (hasCfClearance && !isChallengeTitle) {
+                                    val isContentPage = url?.contains("apkmirror.com") == true && !isChallengeTitle && !isChallengeUrl
+
+                                    if (hasCfClearance || isContentPage) {
                                         isSolved = true
                                         runCatching { CookieManager.getInstance().flush() }
 

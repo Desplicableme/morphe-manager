@@ -72,15 +72,26 @@ object SplitApkPreparer {
     fun writeApksArchive(baseApk: String, splitApks: List<String>, output: File) {
         output.parentFile?.mkdirs()
         ZipOutputStream(output.outputStream().buffered()).use { zip ->
-            (listOf(baseApk) + splitApks).map(::File).forEach { file ->
+            val usedNames = mutableSetOf<String>()
+            (listOf(baseApk) + splitApks).map(::File).filter { it.exists() }.forEach { file ->
                 val crc = CRC32()
                 val buffer = ByteArray(65536)
                 FileInputStream(file).use { input ->
                     var read: Int
                     while (input.read(buffer).also { read = it } >= 0) crc.update(buffer, 0, read)
                 }
+                var entryName = file.name
+                var counter = 1
+                while (entryName in usedNames) {
+                    val base = file.nameWithoutExtension
+                    val ext = file.extension
+                    entryName = "${base}_$counter.$ext"
+                    counter++
+                }
+                usedNames.add(entryName)
+
                 zip.putNextEntry(
-                    ZipEntry(file.name).apply {
+                    ZipEntry(entryName).apply {
                         method = ZipEntry.STORED
                         size = file.length()
                         compressedSize = file.length()
@@ -183,14 +194,54 @@ object SplitApkPreparer {
             }
         }.getOrDefault(emptyList())
 
-    // Split module entries are always at the root of the archive (no path separator).
-    // Nested .apk files (e.g. res/raw/) are embedded resources, not split modules.
+    // Split module entries can be at root or in split folders (e.g. splits/*.apk, standalones/*.apk).
+    // Nested .apk files in assets/, res/, or META-INF/ are embedded resources, not split modules.
     internal fun splitModuleEntries(zip: ZipFile): Sequence<ZipEntry> =
         zip.entries().asSequence().filter { entry ->
             !entry.isDirectory &&
-                    !entry.name.contains('/') &&
-                    entry.name.endsWith(".apk", ignoreCase = true)
+                    entry.name.endsWith(".apk", ignoreCase = true) &&
+                    !entry.name.startsWith("assets/", ignoreCase = true) &&
+                    !entry.name.startsWith("res/", ignoreCase = true) &&
+                    !entry.name.startsWith("META-INF/", ignoreCase = true)
         }
+
+    data class SplitArchiveMetadata(
+        val packageName: String,
+        val versionName: String?,
+        val versionCode: Long
+    )
+
+    fun readSplitArchiveMetadata(file: File): SplitArchiveMetadata? =
+        runCatching {
+            ZipFile(file).use { zip ->
+                val baseEntry = SplitApkInspector.selectBestEntry(zip) ?: return null
+                ZipInputStream(zip.getInputStream(baseEntry)).use { module ->
+                    generateSequence { module.nextEntry }
+                        .firstOrNull { it.name == "AndroidManifest.xml" }
+                        ?.let {
+                            val block = AndroidManifestBlock.load(module)
+                            val pkg = block.packageName ?: return null
+                            val verName = block.versionName?.takeUnless { it.isBlank() }
+                            val verCode = block.versionCode?.toLong() ?: 0L
+                            SplitArchiveMetadata(pkg, verName, verCode)
+                        }
+                }
+            }
+        }.getOrNull()
+
+    fun readApkMetadata(file: File): SplitArchiveMetadata? =
+        runCatching {
+            ZipFile(file).use { zip ->
+                val entry = zip.getEntry("AndroidManifest.xml") ?: return null
+                zip.getInputStream(entry).use { stream ->
+                    val block = AndroidManifestBlock.load(stream)
+                    val pkg = block.packageName ?: return null
+                    val verName = block.versionName?.takeUnless { it.isBlank() }
+                    val verCode = block.versionCode?.toLong() ?: 0L
+                    SplitArchiveMetadata(pkg, verName, verCode)
+                }
+            }
+        }.getOrNull()
 
     private fun hasEmbeddedApkEntries(file: File): Boolean =
         runCatching {
@@ -412,9 +463,20 @@ object SplitApkPreparer {
                 val apkEntries = allEntries.filterNot { it.name in skipped }
 
                 onEvent?.invoke(SplitPreparationEvent.Extracting)
+                val usedNames = mutableSetOf<String>()
                 apkEntries.forEach { entry ->
                     val entryName = entry.name.substringAfterLast('/')
-                    val destination = targetDir.resolve(entryName)
+                    var destinationName = entryName
+                    var counter = 1
+                    while (destinationName in usedNames) {
+                        val base = entryName.substringBeforeLast('.')
+                        val ext = entryName.substringAfterLast('.')
+                        destinationName = "${base}_$counter.$ext"
+                        counter++
+                    }
+                    usedNames.add(destinationName)
+
+                    val destination = targetDir.resolve(destinationName)
                     destination.parentFile?.mkdirs()
                     zip.getInputStream(entry).use { input ->
                         Files.newOutputStream(destination.toPath()).use { output ->

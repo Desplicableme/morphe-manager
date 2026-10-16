@@ -927,37 +927,37 @@ class ApkMirrorDownloader(
         private val HTML_TAG_REGEX = Regex("<[^>]+>")
 
         private val DOWNLOAD_KEY_REGEX = Pattern.compile(
-            """href="([^"]*/download/\?key=[^"]+)"""",
+            """href=["']([^"']*/download/\?key=[^"']+)["']""",
             Pattern.CASE_INSENSITIVE
         )
 
         private val DOWNLOAD_BUTTON_CLASS_REGEX = Pattern.compile(
-            """class="[^"]*downloadButton[^"]*"[^>]*href="([^"]+)"""",
+            """class=["'][^"']*downloadButton[^"']*["'][^>]*href=["']([^"']+)["']""",
             Pattern.CASE_INSENSITIVE
         )
 
         private val DOWNLOAD_BUTTON_CLASS_REVERSE_REGEX = Pattern.compile(
-            """<a[^>]*href="([^"]+)"[^>]*class="[^"]*downloadButton[^"]*"""",
+            """<a[^>]*href=["']([^"']+)["'][^>]*class=["'][^"']*downloadButton[^"']*["']""",
             Pattern.CASE_INSENSITIVE
         )
 
         private val DOWNLOAD_LINK_ID_REGEX = Pattern.compile(
-            """<a[^>]*id="download-link"[^>]*href="([^"]+)"""",
+            """<a[^>]*id=["']download-link["'][^>]*href=["']([^"']+)["']""",
             Pattern.CASE_INSENSITIVE
         )
 
         private val DOWNLOAD_LINK_ID_REVERSE_REGEX = Pattern.compile(
-            """<a[^>]*href="([^"]+)"[^>]*id="download-link"""",
+            """<a[^>]*href=["']([^"']+)["'][^>]*id=["']download-link["']""",
             Pattern.CASE_INSENSITIVE
         )
 
         private val DOWNLOAD_PHP_HREF_REGEX = Pattern.compile(
-            """href="([^"]*download\.php[^"]*)"""",
+            """href=["']([^"']*download\.php[^"']*)["']""",
             Pattern.CASE_INSENSITIVE
         )
 
         private val DOWNLOAD_HERE_LINK_REGEX = Pattern.compile(
-            """<a[^>]+href="([^"]+)"[^>]*>\s*here\s*</a>""",
+            """<a[^>]+href=["']([^"']+)["'][^>]*>\s*here\s*</a>""",
             Pattern.CASE_INSENSITIVE
         )
 

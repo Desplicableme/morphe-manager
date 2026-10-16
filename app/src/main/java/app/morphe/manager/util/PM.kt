@@ -28,6 +28,7 @@ import android.util.Log
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.core.content.pm.PackageInfoCompat
 import app.morphe.manager.domain.apk.ApkSignatureCache
+import app.morphe.manager.patcher.split.SplitApkPreparer
 import app.morphe.patcher.apk.ApkUtils
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -57,6 +58,22 @@ class PM(
 
     val application: Application get() = app
 
+    data class ArchiveManifestInfo(
+        val packageName: String,
+        val versionName: String?,
+        val versionCode: Long
+    )
+
+    fun getArchiveManifest(file: File): ArchiveManifestInfo? {
+        if (!file.exists()) return null
+        val meta = if (SplitApkPreparer.isSplitArchive(file)) {
+            SplitApkPreparer.readSplitArchiveMetadata(file)
+        } else {
+            SplitApkPreparer.readApkMetadata(file)
+        } ?: return null
+        return ArchiveManifestInfo(meta.packageName, meta.versionName, meta.versionCode)
+    }
+
     @Suppress("DEPRECATION")
     fun getPackageInfo(packageName: String, flags: Int = 0): PackageInfo? =
         try {
@@ -80,17 +97,66 @@ class PM(
         }
 
     fun getPackageInfo(file: File): PackageInfo? {
+        if (!file.exists()) return null
         val path = file.absolutePath
-        val flags = PackageManager.GET_META_DATA or PackageManager.GET_ACTIVITIES
-        val pkgInfo = app.packageManager.getPackageArchiveInfo(path, flags) ?: return null
 
-        // This is needed in order to load label and icon.
-        pkgInfo.applicationInfo!!.apply {
-            sourceDir = path
-            publicSourceDir = path
+        // If it's a split archive (.apks, .apkm, .xapk), Android's PackageArchiveInfo cannot read it directly.
+        if (SplitApkPreparer.isSplitArchive(file)) {
+            val manifest = getArchiveManifest(file) ?: return null
+            return createSyntheticPackageInfo(manifest, path)
         }
 
-        return pkgInfo
+        // For regular APKs, first attempt to use Android PackageManager for full icon/metadata support
+        @Suppress("DEPRECATION")
+        val pkgInfo = try {
+            app.packageManager.getPackageArchiveInfo(path, PackageManager.GET_META_DATA or PackageManager.GET_ACTIVITIES)
+        } catch (_: Exception) {
+            null
+        } ?: try {
+            app.packageManager.getPackageArchiveInfo(path, PackageManager.GET_META_DATA)
+        } catch (_: Exception) {
+            null
+        } ?: try {
+            app.packageManager.getPackageArchiveInfo(path, 0)
+        } catch (_: Exception) {
+            null
+        }
+
+        if (pkgInfo != null) {
+            val appInfo = pkgInfo.applicationInfo ?: ApplicationInfo().also { pkgInfo.applicationInfo = it }
+            appInfo.sourceDir = path
+            appInfo.publicSourceDir = path
+
+            if (pkgInfo.versionName.isNullOrBlank()) {
+                val manifest = getArchiveManifest(file)
+                if (manifest?.versionName != null) {
+                    pkgInfo.versionName = manifest.versionName
+                }
+            }
+            return pkgInfo
+        }
+
+        // Fallback: If Android's PackageArchiveInfo completely failed (e.g. on unmerged split base APKs),
+        // parse the AndroidManifest.xml directly using ARSCLib!
+        val manifest = getArchiveManifest(file) ?: return null
+        return createSyntheticPackageInfo(manifest, path)
+    }
+
+    private fun createSyntheticPackageInfo(manifest: ArchiveManifestInfo, path: String): PackageInfo {
+        return PackageInfo().apply {
+            packageName = manifest.packageName
+            versionName = manifest.versionName
+            @Suppress("DEPRECATION")
+            versionCode = manifest.versionCode.toInt()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                longVersionCode = manifest.versionCode
+            }
+            applicationInfo = ApplicationInfo().apply {
+                packageName = manifest.packageName
+                sourceDir = path
+                publicSourceDir = path
+            }
+        }
     }
 
     @Suppress("DEPRECATION", "QueryPermissionsNeeded")
@@ -101,7 +167,7 @@ class PM(
             app.packageManager.getInstalledPackages(flags)
 
     fun PackageInfo.label(): String {
-        val raw = this.applicationInfo!!.loadLabel(app.packageManager).toString()
+        val raw = this.applicationInfo?.loadLabel(app.packageManager)?.toString() ?: this.packageName
         return cleanPackageLabel(raw, this.packageName)
     }
 

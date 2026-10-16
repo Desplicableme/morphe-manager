@@ -124,4 +124,11 @@ class SplitArchiveAbisTest {
 
         assertEquals(emptyList(), SplitApkPreparer.splitArchiveAbis(file))
     }
+
+    @Test
+    fun `split modules in subfolders are correctly detected`() {
+        val file = archive("splits/base.apk", "splits/split_config.arm64_v8a.apk", "splits/split_config.xxhdpi.apk")
+
+        assertEquals(listOf("arm64-v8a"), SplitApkPreparer.splitArchiveAbis(file))
+    }
 }
