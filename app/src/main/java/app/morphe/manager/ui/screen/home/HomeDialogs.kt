@@ -176,7 +176,48 @@ fun HomeDialogs(
                 homeViewModel.cleanupPendingData()
             },
             onOpenApkDownloadHelper = openApkDownloadHelper,
+            onStartInBuiltDownload = { homeViewModel.startInBuiltDownload() },
             onContinue = homeViewModel::handleDownloadInstructionsContinue
+        )
+    }
+
+    // In-built APKMirror download progress dialog
+    AnimatedVisibility(
+        visible = homeViewModel.isApkMirrorDownloading,
+        enter = Animations.overlayEnter,
+        exit = Animations.overlayExit
+    ) {
+        ApkDownloadProgressDialog(
+            appName = homeViewModel.pendingAppName ?: homeViewModel.pendingPackageName ?: "App",
+            version = (homeViewModel.pendingSelectedDownloadVersion ?: homeViewModel.pendingRecommendedVersion)?.version,
+            packageName = homeViewModel.pendingPackageName,
+            status = homeViewModel.apkMirrorDownloadStatus,
+            progress = homeViewModel.apkMirrorDownloadProgress,
+            speedBytesPerSec = homeViewModel.apkMirrorDownloadSpeed,
+            bytesDownloaded = homeViewModel.apkMirrorDownloadBytes.first,
+            totalBytes = homeViewModel.apkMirrorDownloadBytes.second.takeIf { it > 0 },
+            onCancel = homeViewModel::cancelApkMirrorDownload
+        )
+    }
+
+    // In-built APKMirror Cloudflare verification dialog
+    AnimatedVisibility(
+        visible = homeViewModel.showApkMirrorVerificationDialog,
+        enter = Animations.overlayEnter,
+        exit = Animations.overlayExit
+    ) {
+        val verificationUrl = homeViewModel.apkMirrorVerificationUrl ?: "https://www.apkmirror.com"
+        ApkMirrorVerificationDialog(
+            verificationUrl = verificationUrl,
+            packageName = homeViewModel.pendingPackageName,
+            appName = homeViewModel.pendingAppName,
+            onDismissRequest = homeViewModel::dismissApkMirrorVerification,
+            onDownloadReady = { directUrl ->
+                homeViewModel.onApkMirrorVerificationResolved(directUrl)
+            },
+            onVerificationCompleted = {
+                homeViewModel.onApkMirrorVerificationResolved(null)
+            }
         )
     }
 
@@ -205,6 +246,9 @@ fun HomeDialogs(
             },
             onUseInstalledApp = if (isOtherApps) {
                 { homeViewModel.loadInstalledAppsForPicker() }
+            } else null,
+            onDownloadFromApkMirror = if (packageName != null) {
+                { homeViewModel.startInBuiltDownload() }
             } else null
         )
     }

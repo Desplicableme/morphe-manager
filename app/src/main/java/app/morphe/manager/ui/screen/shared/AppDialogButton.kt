@@ -75,7 +75,8 @@ fun AppDialogButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     icon: ImageVector? = null,
-    isDestructive: Boolean = false
+    isDestructive: Boolean = false,
+    textSuffix: String? = null
 ) = DialogButton(
     text = text,
     onClick = onClick,
@@ -83,7 +84,8 @@ fun AppDialogButton(
     modifier = modifier,
     enabled = enabled,
     icon = icon,
-    isDestructive = isDestructive
+    isDestructive = isDestructive,
+    textSuffix = textSuffix
 )
 
 /**

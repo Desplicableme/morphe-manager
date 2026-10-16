@@ -122,6 +122,45 @@ internal fun ApkAvailabilityDialog(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // When original app is installed on the device, prioritize extracting it directly!
+                if (installedApkInfo != null) {
+                    val extractTitle = if (installedApkInfo.isSplit) {
+                        stringResource(R.string.home_apk_extract_installed_split)
+                    } else {
+                        stringResource(R.string.home_apk_extract_installed_apk)
+                    }
+                    val installedMatchesTargets = remember(installedApkInfo, compatibleVersions) {
+                        compatibleVersions.patchableAt(installedApkInfo.version, installedApkInfo.versionCode)
+                    }
+
+                    AppDialogButton(
+                        text = extractTitle,
+                        textSuffix = "v${installedApkInfo.version}",
+                        onClick = onUseInstalled,
+                        icon = Icons.Outlined.PhoneAndroid,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    if (!installedMatchesTargets) {
+                        Notice(
+                            text = stringResource(R.string.home_apk_use_installed_unsupported),
+                            tone = SemanticTone.Warning,
+                            icon = Icons.Outlined.Warning,
+                            density = NoticeDensity.Compact
+                        )
+                    }
+
+                    // The certificate check could not run, so the installed app may already be patched
+                    if (installedApkInfo.patchStateUnknown) {
+                        Notice(
+                            text = stringResource(R.string.home_apk_use_installed_unverified),
+                            tone = SemanticTone.Warning,
+                            icon = Icons.Outlined.Warning,
+                            density = NoticeDensity.Compact
+                        )
+                    }
+                }
+
                 // Main action buttons
                 AppDialogButtonRow(
                     primaryText = stringResource(R.string.home_apk_availability_yes),
@@ -132,11 +171,6 @@ internal fun ApkAvailabilityDialog(
                     secondaryIcon = Icons.Outlined.Check,
                     layout = DialogButtonLayout.Vertical
                 )
-
-                // When saved and installed APKs share the same version, prefer the saved copy.
-                // Hide the installed button in that case to avoid showing two equivalent sources
-                val preferSavedOverInstalled = savedApkInfo != null &&
-                    savedApkInfo.version == installedApkInfo?.version
 
                 // Saved APK button - always shown when a saved APK exists
                 if (savedApkInfo != null) {
@@ -157,29 +191,6 @@ internal fun ApkAvailabilityDialog(
                     if (!savedApkMatchesTargets) {
                         Notice(
                             text = stringResource(R.string.home_apk_use_saved_unsupported),
-                            tone = SemanticTone.Warning,
-                            icon = Icons.Outlined.Warning,
-                            density = NoticeDensity.Compact
-                        )
-                    }
-                }
-
-                // Installed APK button - hidden when saved mono-APK covers the same split version
-                if (installedApkInfo != null && !preferSavedOverInstalled) {
-                    AppDialogOutlinedButton(
-                        text = stringResource(R.string.home_apk_use_installed),
-                        // Never the wrong build: an installed APK the patches do not target is
-                        // dropped before it reaches this dialog
-                        textSuffix = "v${installedApkInfo.version}",
-                        onClick = onUseInstalled,
-                        icon = Icons.Outlined.PhoneAndroid,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    // The certificate check could not run, so the installed app may already be patched
-                    if (installedApkInfo.patchStateUnknown) {
-                        Notice(
-                            text = stringResource(R.string.home_apk_use_installed_unverified),
                             tone = SemanticTone.Warning,
                             icon = Icons.Outlined.Warning,
                             density = NoticeDensity.Compact
@@ -299,7 +310,8 @@ internal fun FilePickerPromptDialog(
     isLoadingInstalledApps: Boolean,
     onDismiss: () -> Unit,
     onOpenFilePicker: () -> Unit,
-    onUseInstalledApp: (() -> Unit)?
+    onUseInstalledApp: (() -> Unit)?,
+    onDownloadFromApkMirror: (() -> Unit)? = null
 ) {
     AppDialog(
         onDismissRequest = onDismiss,
@@ -319,6 +331,15 @@ internal fun FilePickerPromptDialog(
         footer = {
             AppDialogActions(
                 actions = buildList {
+                    if (packageName != null && onDownloadFromApkMirror != null) {
+                        add(
+                            DialogAction(
+                                text = stringResource(R.string.home_download_from_apkmirror),
+                                onClick = onDownloadFromApkMirror,
+                                icon = Icons.Outlined.CloudDownload
+                            )
+                        )
+                    }
                     if (isOtherApps && onUseInstalledApp != null) {
                         add(
                             DialogAction(

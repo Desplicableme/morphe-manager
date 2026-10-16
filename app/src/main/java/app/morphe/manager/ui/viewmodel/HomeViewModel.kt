@@ -24,6 +24,9 @@ import androidx.lifecycle.viewModelScope
 import app.morphe.manager.R
 import app.morphe.manager.data.platform.Filesystem
 import app.morphe.manager.data.platform.NetworkInfo
+import app.morphe.manager.network.apkmirror.ApkMirrorDownloader
+import app.morphe.manager.network.apkmirror.ApkMirrorDownloadProgress
+import app.morphe.manager.network.apkmirror.CloudflareVerificationException
 import app.morphe.manager.data.room.apps.installed.InstallType
 import app.morphe.manager.data.room.apps.installed.InstalledApp
 import app.morphe.manager.domain.apk.*
@@ -144,7 +147,8 @@ class HomeViewModel(
     private val batchPatchCoordinator: BatchPatchCoordinator,
     private val downloadUrlResolver: DownloadUrlResolver,
     versionCatalog: AppVersionCatalog,
-    private val localApkSources: LocalApkSources
+    private val localApkSources: LocalApkSources,
+    val apkMirrorDownloader: ApkMirrorDownloader
 ) : ViewModel(), ApkDownloadHelperHost {
     /** The app list on the home screen. */
     val apps = HomeApps(
@@ -372,6 +376,16 @@ class HomeViewModel(
     var installedAppsForPicker by mutableStateOf<List<InstalledAppPickerItem>>(emptyList())
     // True while APK loading/processing runs in the background
     var processingApkSelection by mutableStateOf(false)
+
+    // In-built APKMirror downloader state
+    var isApkMirrorDownloading by mutableStateOf(false)
+    var apkMirrorDownloadProgress by mutableStateOf<Float?>(null)
+    var apkMirrorDownloadStatus by mutableStateOf("")
+    var apkMirrorDownloadSpeed by mutableStateOf(0L)
+    var apkMirrorDownloadBytes by mutableStateOf(0L to 0L)
+    private var apkMirrorDownloadJob: kotlinx.coroutines.Job? = null
+    var showApkMirrorVerificationDialog by mutableStateOf(false)
+    var apkMirrorVerificationUrl by mutableStateOf<String?>(null)
 
     // Error/warning dialogs
     var showUnsupportedVersionDialog by mutableStateOf<UnsupportedVersionDialogState?>(null)
@@ -1361,13 +1375,14 @@ class HomeViewModel(
             } else null
             val installedJob = async(Dispatchers.IO) { localApkSources.installed(packageName) }
             savedJob?.await()?.let { pendingSavedApkInfo = it }
-            applyInstalledAppSource(installedJob.await(), offersApk = expertMode)
+            applyInstalledAppSource(installedJob.await(), offersApk = true)
         }
 
         val recommendedVersion = pendingRecommendedVersion
 
         val shouldAutoUseSaved = !expertMode &&
                 pendingSavedApkInfo != null &&
+                pendingInstalledApkInfo == null &&
                 recommendedVersion != null &&
                 pendingSavedApkInfo!!.version == recommendedVersion.version
 
@@ -1381,16 +1396,17 @@ class HomeViewModel(
     }
 
     /**
-     * Stores the installed-app lookup, keeping the APK only when its version can be patched
-     * so every caller offers the installed source under the same condition. [offersApk] is what
-     * the flow itself allows: simple mode hides the button rather than the app behind it.
+     * Stores the installed-app lookup, keeping the APK so callers can extract split APKs or
+     * base APK directly from the device.
      */
     private fun applyInstalledAppSource(source: InstalledAppSource, offersApk: Boolean = true) {
         pendingStockAppInstalled = source.hasStockInstall
         pendingInstalledAppVersion = source.version
-        pendingInstalledApkInfo = source.apk
-            .takeIf { offersApk }
-            .patchableBy(pendingCompatibleVersions)
+        pendingInstalledApkInfo = if (offersApk) {
+            source.apk?.let { apk ->
+                apk.patchableBy(pendingCompatibleVersions) ?: apk
+            }
+        } else null
     }
 
     /**
@@ -2718,6 +2734,243 @@ class HomeViewModel(
         showDownloadInstructionsDialog = false
         showFilePickerPromptDialog = false
         showInstalledAppPickerDialog = false
+        cancelApkMirrorDownload()
+    }
+
+    /**
+     * Cancels any active in-built APKMirror download.
+     */
+    fun cancelApkMirrorDownload() {
+        apkMirrorDownloadJob?.cancel()
+        apkMirrorDownloadJob = null
+        isApkMirrorDownloading = false
+        apkMirrorDownloadProgress = null
+        apkMirrorDownloadStatus = ""
+    }
+
+    /**
+     * Starts an in-built download of the APK or APK bundle from APKMirror.
+     */
+    fun startInBuiltDownload(
+        packageName: String? = pendingPackageName,
+        version: String? = (pendingSelectedDownloadVersion ?: pendingRecommendedVersion)?.version,
+        url: String? = resolvedDownloadUrl
+    ) {
+        val pkg = packageName ?: return
+        showDownloadInstructionsDialog = false
+        showFilePickerPromptDialog = false
+
+        apkMirrorDownloadJob?.cancel()
+        apkMirrorDownloadJob = viewModelScope.launch {
+            isApkMirrorDownloading = true
+            apkMirrorDownloadProgress = null
+            apkMirrorDownloadStatus = app.getString(R.string.home_download_inbuilt_starting)
+            apkMirrorDownloadSpeed = 0L
+            apkMirrorDownloadBytes = 0L to 0L
+
+            try {
+                val bundleMetadata = bundleAppMetadataFlow.value[pkg]
+                val isBundleRequired = bundleMetadata?.apkFileType?.isApk == false
+
+                val downloadedFile = apkMirrorDownloader.download(
+                    initialUrl = url,
+                    packageName = pkg,
+                    versionName = version,
+                    isBundleRequired = isBundleRequired,
+                    onProgress = { progress ->
+                        when (progress) {
+                            is ApkMirrorDownloadProgress.Resolving -> {
+                                apkMirrorDownloadStatus = progress.message
+                                apkMirrorDownloadProgress = null
+                            }
+                            is ApkMirrorDownloadProgress.Downloading -> {
+                                apkMirrorDownloadProgress = progress.progress
+                                apkMirrorDownloadSpeed = progress.speedBytesPerSec
+                                val downloadedMb = progress.bytesDownloaded / (1024f * 1024f)
+                                apkMirrorDownloadStatus = if (progress.totalBytes != null && progress.totalBytes > 0) {
+                                    val totalMb = progress.totalBytes / (1024f * 1024f)
+                                    val percent = ((progress.progress ?: 0f) * 100).toInt()
+                                    apkMirrorDownloadBytes = progress.bytesDownloaded to progress.totalBytes
+                                    "Downloading: %.1f MB / %.1f MB (%d%%)".format(downloadedMb, totalMb, percent)
+                                } else {
+                                    apkMirrorDownloadBytes = progress.bytesDownloaded to 0L
+                                    "Downloading: %.1f MB".format(downloadedMb)
+                                }
+                            }
+                            is ApkMirrorDownloadProgress.Completed -> {
+                                apkMirrorDownloadStatus = app.getString(R.string.home_download_inbuilt_processing)
+                            }
+                        }
+                    }
+                )
+
+                isApkMirrorDownloading = false
+                handleDownloadedApk(downloadedFile)
+            } catch (_: kotlinx.coroutines.CancellationException) {
+                Log.i(tag, "In-built download cancelled")
+                isApkMirrorDownloading = false
+            } catch (e: CloudflareVerificationException) {
+                Log.w(tag, "In-built download encountered Cloudflare challenge: ${e.verificationUrl}")
+                isApkMirrorDownloading = false
+                apkMirrorVerificationUrl = e.verificationUrl
+                showApkMirrorVerificationDialog = true
+            } catch (e: Exception) {
+                Log.e(tag, "In-built download failed", e)
+                isApkMirrorDownloading = false
+                app.toast(app.getString(R.string.home_download_inbuilt_failed, e.message ?: "Network error"))
+                cleanupPendingData()
+            }
+        }
+    }
+
+    /**
+     * Downloads an APK directly from an intercepted direct stream URL (e.g. from Cloudflare Turnstile completion).
+     */
+    fun startInBuiltDirectDownload(
+        directUrl: String,
+        packageName: String? = pendingPackageName,
+        version: String? = (pendingSelectedDownloadVersion ?: pendingRecommendedVersion)?.version
+    ) {
+        val pkg = packageName ?: return
+        showDownloadInstructionsDialog = false
+        showFilePickerPromptDialog = false
+
+        apkMirrorDownloadJob?.cancel()
+        apkMirrorDownloadJob = viewModelScope.launch {
+            isApkMirrorDownloading = true
+            apkMirrorDownloadProgress = null
+            apkMirrorDownloadStatus = app.getString(R.string.home_download_inbuilt_starting)
+            apkMirrorDownloadSpeed = 0L
+            apkMirrorDownloadBytes = 0L to 0L
+
+            try {
+                val downloadedFile = apkMirrorDownloader.downloadFromDirectUrl(
+                    downloadUrl = directUrl,
+                    packageName = pkg,
+                    versionName = version,
+                    onProgress = { progress ->
+                        when (progress) {
+                            is ApkMirrorDownloadProgress.Resolving -> {
+                                apkMirrorDownloadStatus = progress.message
+                                apkMirrorDownloadProgress = null
+                            }
+                            is ApkMirrorDownloadProgress.Downloading -> {
+                                apkMirrorDownloadProgress = progress.progress
+                                apkMirrorDownloadSpeed = progress.speedBytesPerSec
+                                val downloadedMb = progress.bytesDownloaded / (1024f * 1024f)
+                                apkMirrorDownloadStatus = if (progress.totalBytes != null && progress.totalBytes > 0) {
+                                    val totalMb = progress.totalBytes / (1024f * 1024f)
+                                    val percent = ((progress.progress ?: 0f) * 100).toInt()
+                                    apkMirrorDownloadBytes = progress.bytesDownloaded to progress.totalBytes
+                                    "Downloading: %.1f MB / %.1f MB (%d%%)".format(downloadedMb, totalMb, percent)
+                                } else {
+                                    apkMirrorDownloadBytes = progress.bytesDownloaded to 0L
+                                    "Downloading: %.1f MB".format(downloadedMb)
+                                }
+                            }
+                            is ApkMirrorDownloadProgress.Completed -> {
+                                apkMirrorDownloadStatus = app.getString(R.string.home_download_inbuilt_processing)
+                            }
+                        }
+                    }
+                )
+
+                isApkMirrorDownloading = false
+                handleDownloadedApk(downloadedFile)
+            } catch (_: kotlinx.coroutines.CancellationException) {
+                Log.i(tag, "In-built direct download cancelled")
+                isApkMirrorDownloading = false
+            } catch (e: CloudflareVerificationException) {
+                Log.w(tag, "Cloudflare re-challenge on direct URL: ${e.verificationUrl}")
+                isApkMirrorDownloading = false
+                apkMirrorVerificationUrl = e.verificationUrl
+                showApkMirrorVerificationDialog = true
+            } catch (e: Exception) {
+                Log.e(tag, "In-built direct download failed", e)
+                isApkMirrorDownloading = false
+                app.toast(app.getString(R.string.home_download_inbuilt_failed, e.message ?: "Network error"))
+                cleanupPendingData()
+            }
+        }
+    }
+
+    /**
+     * Resumes or restarts in-built download once Cloudflare bot verification has been completed in the WebView dialog.
+     */
+    fun onApkMirrorVerificationResolved(directUrl: String? = null) {
+        showApkMirrorVerificationDialog = false
+        val pkg = pendingPackageName ?: return
+        val version = (pendingSelectedDownloadVersion ?: pendingRecommendedVersion)?.version
+
+        if (!directUrl.isNullOrBlank()) {
+            startInBuiltDirectDownload(directUrl, pkg, version)
+        } else {
+            startInBuiltDownload(pkg, version, apkMirrorVerificationUrl ?: resolvedDownloadUrl)
+        }
+    }
+
+    /**
+     * Cancels active verification dialog.
+     */
+    fun dismissApkMirrorVerification() {
+        showApkMirrorVerificationDialog = false
+        apkMirrorVerificationUrl = null
+        cleanupPendingData()
+    }
+
+    /**
+     * Processes an APK or split bundle downloaded directly by the in-built downloader.
+     */
+    fun handleDownloadedApk(file: File) {
+        viewModelScope.launch {
+            processingApkSelection = true
+            try {
+                val (packageInfo, icon, patched) = withContext(Dispatchers.IO) {
+                    SplitApkInspector.withRepresentativeApk(
+                        source = file,
+                        workspace = filesystem.uiTempDir
+                    ) { apk ->
+                        val info = pm.getPackageInfo(apk)
+                        Triple(
+                            info,
+                            info?.let(appDataResolver::detachedArchiveIcon),
+                            info != null && localApkSources.isPatchedApk(apk, info.packageName)
+                        )
+                    }
+                }
+
+                if (packageInfo == null) {
+                    Log.w(tag, "Downloaded file ${file.name} could not be parsed as an APK")
+                    file.delete()
+                    app.toast(app.getString(R.string.home_invalid_apk_not_an_apk))
+                    cleanupPendingData()
+                    return@launch
+                }
+
+                if (patched) {
+                    file.delete()
+                    app.toast(app.getString(R.string.home_invalid_apk_already_patched))
+                    cleanupPendingData()
+                    return@launch
+                }
+
+                val selected = SelectedApp.Local(
+                    packageName = packageInfo.packageName,
+                    version = packageInfo.versionName ?: "unknown",
+                    versionCode = pm.getVersionCode(packageInfo),
+                    file = file,
+                    temporary = true
+                )
+                pickedApkIcon = icon?.let { file to it }
+                processSelectedApp(selected)
+            } catch (e: Exception) {
+                Log.e(tag, "Failed to load downloaded APK", e)
+                app.toast(app.getString(R.string.home_invalid_apk_io_error))
+                cleanupPendingData()
+            } finally {
+                processingApkSelection = false
+            }
+        }
     }
 
     /**
@@ -2727,6 +2980,7 @@ class HomeViewModel(
      */
     override fun onCleared() {
         apps.close()
+        cancelApkMirrorDownload()
         val pending = pendingSelectedApp
         if (pending is SelectedApp.Local && pending.temporary) {
             pending.file.delete()
@@ -2749,18 +3003,34 @@ class HomeViewModel(
     ): ApkLoadResult = withContext(Dispatchers.IO) {
         try {
             // Copy file to uiTempDir with original extension detection
-            val fileName = context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                if (cursor.moveToFirst() && nameIndex != -1) cursor.getString(nameIndex) else null
-            } ?: "temp_${System.currentTimeMillis()}"
+            val fileName = if (uri.scheme == "file") {
+                uri.lastPathSegment
+            } else {
+                runCatching {
+                    context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                        val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                        if (cursor.moveToFirst() && nameIndex != -1) cursor.getString(nameIndex) else null
+                    }
+                }.getOrNull()
+            } ?: uri.lastPathSegment ?: "temp_${System.currentTimeMillis()}"
 
             val extension = fileName.substringAfterLast('.', "apk").lowercase()
             val tempFile = filesystem.uiTempDir.resolve("temp_apk_${System.currentTimeMillis()}.$extension")
 
             // openInputStream can return null when the provider is unavailable
             // e.g. Samsung External Storage restricted by Battery Optimization
-            val bytesCopied = context.contentResolver.openInputStream(uri)?.use { input ->
-                tempFile.outputStream().use { output -> input.copyTo(output) }
+            val bytesCopied = if (uri.scheme == "file") {
+                val src = File(uri.path ?: "")
+                if (!src.exists()) {
+                    tempFile.delete()
+                    return@withContext ApkLoadResult.Unreadable
+                }
+                src.copyTo(tempFile, overwrite = true)
+                tempFile.length()
+            } else {
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    tempFile.outputStream().use { output -> input.copyTo(output) }
+                }
             }
             if (bytesCopied == null || bytesCopied == 0L) {
                 tempFile.delete()

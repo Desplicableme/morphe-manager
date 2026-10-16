@@ -319,6 +319,7 @@ fun BatchPatcherScreen(
             isApkBundle = metadata?.apkFileType?.isApk == false,
             onDismiss = viewModel::cancelApkSearch,
             onOpenApkDownloadHelper = openApkDownloadHelper,
+            onStartInBuiltDownload = { viewModel.startInBuiltDownload() },
             onContinue = viewModel::confirmApkSearch
         )
     }
@@ -336,7 +337,41 @@ fun BatchPatcherScreen(
                 viewModel.dismissAttachPrompt()
                 attachApkTo(item.id)
             },
-            onUseInstalledApp = null
+            onUseInstalledApp = null,
+            onDownloadFromApkMirror = { viewModel.startInBuiltDownload(item) }
+        )
+    }
+
+    if (viewModel.isApkMirrorDownloading) {
+        ApkDownloadProgressDialog(
+            appName = viewModel.apkMirrorDownloadingItem?.appName
+                ?: viewModel.apkSearch?.item?.appName
+                ?: viewModel.attachPrompt?.appName
+                ?: stringResource(R.string.app_name),
+            status = viewModel.apkMirrorDownloadStatus,
+            progress = viewModel.apkMirrorDownloadProgress,
+            speedBytesPerSec = viewModel.apkMirrorDownloadSpeed,
+            bytesDownloaded = viewModel.apkMirrorDownloadBytes.first,
+            totalBytes = viewModel.apkMirrorDownloadBytes.second,
+            onCancel = viewModel::cancelApkMirrorDownload,
+            version = viewModel.apkSearch?.version,
+            packageName = viewModel.apkMirrorDownloadingItem?.packageName
+        )
+    }
+
+    if (viewModel.showApkMirrorVerificationDialog) {
+        val verificationUrl = viewModel.apkMirrorVerificationUrl ?: "https://www.apkmirror.com"
+        ApkMirrorVerificationDialog(
+            verificationUrl = verificationUrl,
+            packageName = viewModel.apkMirrorDownloadingItem?.packageName,
+            appName = viewModel.apkMirrorDownloadingItem?.appName,
+            onDismissRequest = viewModel::dismissApkMirrorVerification,
+            onDownloadReady = { directUrl ->
+                viewModel.onApkMirrorVerificationResolved(directUrl)
+            },
+            onVerificationCompleted = {
+                viewModel.onApkMirrorVerificationResolved(null)
+            }
         )
     }
 

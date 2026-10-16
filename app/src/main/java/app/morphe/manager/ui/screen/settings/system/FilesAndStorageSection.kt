@@ -26,6 +26,7 @@ import app.morphe.manager.ui.viewmodel.SettingsViewModel
 import app.morphe.manager.util.ApkDownloadHelperContract
 import app.morphe.manager.util.isAndroidTv
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
@@ -107,6 +108,7 @@ fun FilesAndStorageSection(
                 )
             }
         }
+
 
         // TV always uses the custom picker regardless of this toggle, so hide it to avoid confusion
         val showFilePicker = !isTV

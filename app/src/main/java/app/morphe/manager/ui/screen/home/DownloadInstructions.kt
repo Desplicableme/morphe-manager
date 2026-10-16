@@ -243,6 +243,7 @@ internal fun DownloadInstructionsDialog(
     isApkBundle: Boolean,
     onDismiss: () -> Unit,
     onOpenApkDownloadHelper: (() -> Unit)? = null,
+    onStartInBuiltDownload: (() -> Unit)? = null,
     onContinue: (handOff: (String) -> Boolean) -> Unit
 ) {
     val uriHandler = LocalUriHandler.current
@@ -286,6 +287,13 @@ internal fun DownloadInstructionsDialog(
         footer = {
             AppDialogActions(
                 actions = listOfNotNull(
+                    if (onStartInBuiltDownload != null) {
+                        DialogAction(
+                            text = stringResource(if (isApkBundle) R.string.home_download_inbuilt_bundle else R.string.home_download_inbuilt_apk),
+                            onClick = onStartInBuiltDownload,
+                            icon = Icons.Outlined.Download
+                        )
+                    } else null,
                     DialogAction(
                         text = continueText,
                         onClick = openLink,
@@ -368,7 +376,8 @@ internal fun DownloadInstructionsDialog(
                                     SiteDownloadButton(
                                         button = button,
                                         downloadColor = downloadColor,
-                                        isApkBundle = isApkBundle
+                                        isApkBundle = isApkBundle,
+                                        onDownloadClick = onStartInBuiltDownload
                                     )
                                 }
                             }
@@ -392,13 +401,14 @@ internal fun DownloadInstructionsDialog(
 /**
  * Redraws the button the user has to find on the website.
  *
- * Pressing it downloads nothing, so every copy answers with the same nudge back to the website.
+ * Pressing it starts the in-built download if available, or nudges the user to the website.
  */
 @Composable
 private fun SiteDownloadButton(
     button: SiteButton,
     downloadColor: Color,
-    isApkBundle: Boolean
+    isApkBundle: Boolean,
+    onDownloadClick: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val toasts = listOf(
@@ -411,11 +421,15 @@ private fun SiteDownloadButton(
     )
     var clickCount by remember { mutableIntStateOf(0) }
     val onClick = {
-        clickCount++
-        context.toast(
-            string = toasts.getOrElse(clickCount - 1) { toasts.last() },
-            duration = Toast.LENGTH_LONG
-        )
+        if (onDownloadClick != null) {
+            onDownloadClick()
+        } else {
+            clickCount++
+            context.toast(
+                string = toasts.getOrElse(clickCount - 1) { toasts.last() },
+                duration = Toast.LENGTH_LONG
+            )
+        }
     }
 
     when (button) {

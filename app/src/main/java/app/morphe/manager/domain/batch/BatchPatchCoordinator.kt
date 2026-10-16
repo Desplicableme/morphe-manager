@@ -692,6 +692,14 @@ class BatchPatchCoordinator(
         val file = (selectedApp as? SelectedApp.Local)?.file?.takeIf { it.exists() } ?: return
         if (SplitApkPreparer.isSplitArchive(file)) return
 
+        if (prefs.autoDeleteOriginalApks.get()) {
+            originalApkRepository.delete(item.packageName)
+            if (selectedApp.temporary) {
+                file.delete()
+            }
+            return
+        }
+
         val existing = originalApkRepository.get(item.packageName)
         if (existing != null && existing.version == version && File(existing.filePath).exists()) return
 
