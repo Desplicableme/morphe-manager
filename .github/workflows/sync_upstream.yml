@@ -1,0 +1,43 @@
+name: Sync Upstream
+
+on:
+  schedule:
+    # Run daily at 04:00 UTC
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    name: Sync upstream branches
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add and Fetch Upstream
+        run: |
+          git remote add upstream https://github.com/MorpheApp/morphe-manager.git || true
+          git fetch upstream --tags --force
+          git fetch upstream main dev
+
+      - name: Push Upstream Branches to Fork
+        run: |
+          echo "Syncing upstream main to upstream-main branch..."
+          git push origin upstream/main:refs/heads/upstream-main --force || true
+
+          echo "Syncing upstream dev to upstream-dev branch..."
+          git push origin upstream/dev:refs/heads/upstream-dev --force || true
+
+          echo "Pushing latest upstream tags..."
+          git push origin --tags --force || true

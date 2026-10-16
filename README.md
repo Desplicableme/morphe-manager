@@ -24,11 +24,28 @@
 </p>
 &nbsp;
 
-# 💊 Morphe
+# 💊 Morphe (Enhanced Edition)
 
-> Want to watch ads? Us neither.
+[![Release](https://img.shields.io/github/v/release/Desplicableme/morphe-manager?color=blue&label=Latest%20Enhanced%20Build)](https://github.com/Desplicableme/morphe-manager/releases/latest)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/Desplicableme/morphe-manager/build_enhanced_apk.yml?label=Build)](https://github.com/Desplicableme/morphe-manager/actions)
+[![Upstream Sync](https://img.shields.io/github/actions/workflow/status/Desplicableme/morphe-manager/sync_upstream.yml?label=Upstream%20Sync)](https://github.com/Desplicableme/morphe-manager/actions)
 
-Morphe is an Android app that patches YouTube, YouTube Music, and Reddit - stripping ads and giving you back control over your experience. No root required.
+> Enhanced, fully self-contained fork of [Morphe](https://github.com/MorpheApp/morphe-manager) with an **in-built APKMirror downloader**, **split APK extraction**, and **automated storage cleanup**.
+
+---
+
+### 🚀 What's New in This Enhanced Edition?
+
+* 📥 **In-Built APKMirror Downloader**: Directly searches, resolves, and downloads APKs and APKM split bundles from within Morphe. No manual browser hops or file hunting required.
+* 🛡️ **In-App WebView Verification**: When APKMirror presents Cloudflare challenges or download confirmations, an embedded WebView lets you complete verification in-app, then automatically intercepts the download stream and begins patching.
+* ⚡ **Installed App & Split APK Extraction**: If the target application is already installed on your device, Morphe automatically extracts its local `base.apk` and split APKs via Android's `PackageManager`, bypassing the need to download anything from the web.
+* 🧹 **Complete Storage Management Suite**:
+  - **1-Tap Quick Clean**: Instantly purges temporary patcher workspace folders, cache directories, and leftover downloaded APKs.
+  - **Auto-Deletion Settings**: Opt-in toggles to automatically wipe downloaded source APKs and clear caches after patching successfully finishes.
+
+[⬇️ **Download Latest Enhanced APK (v1.35.0-enhanced)**](https://github.com/Desplicableme/morphe-manager/releases/latest)
+
+---
 
 ## ✨ Why Morphe?
 
