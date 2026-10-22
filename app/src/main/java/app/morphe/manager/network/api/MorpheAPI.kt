@@ -24,6 +24,9 @@ import io.ktor.client.request.url
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
@@ -38,6 +41,17 @@ private const val GITHUB_RAW_HOST = "raw.githubusercontent.com"
 internal fun isRawGitHubUrl(url: String): Boolean = runCatching {
     java.net.URI(url).host.equals(GITHUB_RAW_HOST, ignoreCase = true)
 }.getOrDefault(false)
+
+/** What GitHub says of a token, see [MorpheAPI.checkGitHubPat]. */
+sealed interface GitHubPatCheck {
+    data class Valid(val login: String) : GitHubPatCheck
+
+    /** Expired, revoked or never valid. */
+    data object Rejected : GitHubPatCheck
+
+    /** GitHub could not be asked, so the token may be fine. */
+    data object Unreachable : GitHubPatCheck
+}
 
 /** Coordinates of a single asset inside a GitHub release download link. */
 internal data class ReleaseAssetRef(
@@ -109,6 +123,8 @@ class MorpheAPI(
             "https://raw.githubusercontent.com/$owner/$name/$branch/$path"
     }
 
+    private val rejected = MutableStateFlow<String?>(null)
+
     /**
      * Token GitHub has already turned down, kept so it is not sent again.
      *
@@ -116,9 +132,7 @@ class MorpheAPI(
      * which would be a worse outcome than simply falling back to the anonymous rate limit. Holding
      * the token itself rather than a flag means a newly entered one is tried again.
      */
-    @Volatile
-    @PublishedApi
-    internal var rejectedPat: String? = null
+    val rejectedPat: StateFlow<String?> = rejected.asStateFlow()
 
     // Lazy so URL parsing doesn't happen on construction — only when first needed
     private val managerConfig: RepoConfig by lazy { parseRepoUrl(MANAGER_REPO_URL) }
@@ -184,22 +198,44 @@ class MorpheAPI(
         path: String
     ): APIResponse<T> {
         val url = "${config.apiBase}/${path.trimStart('/')}"
-        val pat = prefs.gitHubPat.get().takeIf { it.isNotBlank() && it != rejectedPat }
+        val pat = prefs.gitHubPat.get().takeIf { it.isNotBlank() && it != rejected.value }
             ?: return client.request { url(url) }
 
         val response: APIResponse<T> = client.request {
             header("Authorization", "Bearer $pat")
             url(url)
         }
+        if (!response.isUnauthorized()) return response
 
-        val rejected = response is APIResponse.Error &&
-                response.error.statusCode == HttpStatusCode.Unauthorized
-        if (!rejected) return response
-
-        rejectedPat = pat
+        rejected.value = pat
         Log.w(tag, "GitHub rejected the configured PAT, retrying $path anonymously")
         return client.request { url(url) }
     }
+
+    /**
+     * Asks GitHub whose [pat] is. A token it turns down is held back from later requests as one
+     * found out along the way is, and one it accepts is sent again even if it was turned down before.
+     */
+    suspend fun checkGitHubPat(pat: String): GitHubPatCheck {
+        val response = client.request<GitHubUser>(retryOn429 = false) {
+            header(HttpHeaders.Authorization, "Bearer $pat")
+            url("https://api.github.com/user")
+        }
+        return when {
+            response is APIResponse.Success -> {
+                rejected.compareAndSet(pat, null)
+                GitHubPatCheck.Valid(response.data.login)
+            }
+            response.isUnauthorized() -> {
+                rejected.value = pat
+                GitHubPatCheck.Rejected
+            }
+            else -> GitHubPatCheck.Unreachable
+        }
+    }
+
+    private fun APIResponse<*>.isUnauthorized() =
+        this is APIResponse.Error && error.statusCode == HttpStatusCode.Unauthorized
 
     /**
      * Fetches a source's file, retrying a raw.githubusercontent.com 404 with the user's PAT. GitHub
@@ -219,7 +255,7 @@ class MorpheAPI(
     internal suspend fun patForMissingRawFile(url: String, response: APIResponse<*>): String? {
         val missing = response is APIResponse.Error && response.error.statusCode == HttpStatusCode.NotFound
         if (!missing || !isRawGitHubUrl(url)) return null
-        return prefs.gitHubPat.get().takeIf { it.isNotBlank() && it != rejectedPat }
+        return prefs.gitHubPat.get().takeIf { it.isNotBlank() && it != rejected.value }
     }
 
     /**
@@ -312,7 +348,7 @@ class MorpheAPI(
         config: RepoConfig,
         releaseInfo: ManagerReleaseInfo
     ): MorpheAsset {
-        val version = normalizeVersion(releaseInfo.version)
+        val version = releaseInfo.version.withVersionPrefix()
         return MorpheAsset(
             downloadUrl = releaseInfo.downloadUrl,
             createdAt = parseTimestamp(releaseInfo.createdAt),
@@ -327,7 +363,7 @@ class MorpheAPI(
         config: RepoConfig,
         releaseInfo: PatchesReleaseInfo
     ): MorpheAsset {
-        val version = normalizeVersion(releaseInfo.version)
+        val version = releaseInfo.version.withVersionPrefix()
         return MorpheAsset(
             downloadUrl = releaseInfo.downloadUrl,
             createdAt = parseTimestamp(releaseInfo.createdAt),
@@ -376,10 +412,6 @@ class MorpheAPI(
         }
         return Instant.parse(normalized).toLocalDateTime(TimeZone.UTC)
     }
-
-    /** Ensures a version string is prefixed with `v`, so `1.2.3` becomes `v1.2.3`. */
-    private fun normalizeVersion(version: String): String =
-        if (version.startsWith("v")) version else "v$version"
 
     /** Returns true if [asset] looks like an Android APK by name or content-type. */
     private fun isManagerAsset(asset: GitHubAsset): Boolean =
@@ -441,7 +473,6 @@ class MorpheAPI(
      */
     suspend fun getAppUpdate(): MorpheAsset? {
         val usePrereleases = prefs.useManagerPrereleases.get()
-        val currentWeight = versionWeight(BuildConfig.VERSION_NAME.removePrefix("v"))
         val branch = if (usePrereleases) "dev" else "main"
 
         val candidate = if (USE_MANAGER_DIRECT_JSON) {
@@ -458,7 +489,7 @@ class MorpheAPI(
         // along, and it stays there until the stable release replaces it
         val update = candidate?.takeIf {
             (usePrereleases || !it.version.contains('-')) &&
-                    versionWeight(it.version.removePrefix("v")) > currentWeight
+                    isNewerVersion(BuildConfig.VERSION_NAME, it.version)
         } ?: return null
 
         // Only a definitive "not there" hides the update: a check that could not run at all
@@ -469,28 +500,6 @@ class MorpheAPI(
         }
 
         return update
-    }
-
-    /**
-     * Converts a semver-like version string to a comparable [Long] weight.
-     *
-     * Format: `MAJOR.MINOR.PATCH[-prerelease.N]`
-     *
-     * Stable releases rank strictly above pre-releases with the same core version:
-     * e.g. `1.2.3` > `1.2.3-beta.5`.
-     */
-    private fun versionWeight(version: String): Long {
-        val dashIdx = version.indexOf('-')
-        val core = if (dashIdx >= 0) version.substring(0, dashIdx) else version
-        val pre = if (dashIdx >= 0) version.substring(dashIdx + 1) else null
-        val parts = core.split('.').map { it.toIntOrNull() ?: 0 }
-        val major = parts.getOrElse(0) { 0 }.toLong()
-        val minor = parts.getOrElse(1) { 0 }.toLong()
-        val patch = parts.getOrElse(2) { 0 }.toLong()
-        // Stable gets a 100_000 bonus so it always beats any pre-release of the same version
-        val preWeight = if (pre == null) 100_000L
-        else pre.split('.').lastOrNull()?.toLongOrNull() ?: 0L
-        return major * 1_000_000_000L + minor * 1_000_000L + patch * 100_000L + preWeight
     }
 
     /**
@@ -764,7 +773,9 @@ class MorpheAPI(
      * Resolves a redirect URL by delegating a HEAD request to [HttpService.headRedirect].
      * Returns the final destination URL, or null if there is no redirect or an error occurs.
      */
-    suspend fun resolveRedirect(url: String): String? = client.headRedirect(url)
+    suspend fun resolveRedirect(url: String): String? = client.headRedirect(url) {
+        if (url.startsWith("$MORPHE_API_URL/")) header(HttpHeaders.UserAgent, MORPHE_USER_AGENT)
+    }
 
     /**
      * Returns this response if successful; otherwise invokes [fallback] and returns its result.

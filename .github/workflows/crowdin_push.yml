@@ -12,6 +12,7 @@ on:
 jobs:
   push:
     name: Push strings
+    if: github.repository == 'MorpheApp/morphe-manager' || (secrets.CROWDIN_PROJECT_ID != '' && secrets.CROWDIN_PERSONAL_TOKEN != '')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout dev

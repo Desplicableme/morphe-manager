@@ -1,17 +1,19 @@
-name: Sync Upstream
+name: Sync & Auto-Merge Upstream
 
 on:
   schedule:
-    # Run daily at 04:00 UTC
-    - cron: '0 4 * * *'
+    # Run twice daily at 04:00 and 16:00 UTC
+    - cron: '0 4,16 * * *'
   workflow_dispatch:
 
 permissions:
   contents: write
+  pull-requests: write
+  issues: write
 
 jobs:
-  sync:
-    name: Sync upstream branches
+  sync-and-merge:
+    name: Sync and auto-merge upstream
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -31,7 +33,7 @@ jobs:
           git fetch upstream --tags --force
           git fetch upstream main dev
 
-      - name: Push Upstream Branches to Fork
+      - name: Push Upstream Branches and Tags to Fork
         run: |
           echo "Syncing upstream main to upstream-main branch..."
           git push origin upstream/main:refs/heads/upstream-main --force || true
@@ -41,3 +43,35 @@ jobs:
 
           echo "Pushing latest upstream tags..."
           git push origin --tags --force || true
+
+      - name: Auto-Merge Upstream into main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git checkout main
+          
+          BEHIND_COUNT=$(git rev-list --count main..upstream/main)
+          echo "Commits behind upstream/main: $BEHIND_COUNT"
+          
+          if [ "$BEHIND_COUNT" -eq 0 ]; then
+            echo "Already up-to-date with upstream/main. No merge needed."
+            exit 0
+          fi
+
+          echo "Attempting auto-merge of upstream/main into main..."
+          if git merge --no-edit -m "chore: auto-merge upstream updates ($BEHIND_COUNT commits)" upstream/main; then
+            echo "Merge succeeded cleanly! Pushing to origin main..."
+            git push origin main
+            echo "Pushed to main successfully. This will trigger Build & Publish workflow."
+          else
+            echo "Merge conflict detected! Aborting merge and opening alert issue..."
+            git merge --abort || true
+            
+            CONFLICT_ISSUE=$(gh issue list --search "Upstream merge conflict" --state open --json number -q '.[0].number' || echo "")
+            if [ -z "$CONFLICT_ISSUE" ]; then
+              gh issue create \
+                --title "⚠️ Upstream merge conflict detected ($BEHIND_COUNT commits behind)" \
+                --body "Automated sync detected new commits in \`MorpheApp/morphe-manager:main\` that cannot be cleanly auto-merged into \`main\` without manual conflict resolution. Please pull \`upstream/main\` locally, resolve conflicts, and push to \`main\`." || true
+            fi
+            exit 1
+          fi

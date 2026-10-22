@@ -15,9 +15,6 @@ import android.webkit.WebViewClient
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Check
-import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,6 +26,9 @@ import androidx.compose.ui.viewinterop.AndroidView
 import app.morphe.manager.R
 import app.morphe.manager.network.apkmirror.ApkMirrorDownloader
 import app.morphe.manager.ui.screen.shared.*
+import com.composables.icons.materialsymbols.MaterialSymbols
+import com.composables.icons.materialsymbols.rounded.Check
+import com.composables.icons.materialsymbols.rounded.Close
 
 /**
  * In-app WebView verification dialog for APKMirror Cloudflare verification and downloads.
@@ -41,7 +41,7 @@ import app.morphe.manager.ui.screen.shared.*
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-internal fun ApkMirrorVerificationDialog(
+internal fun DialogHostScope.ApkMirrorVerificationDialog(
     verificationUrl: String,
     packageName: String?,
     appName: String?,
@@ -69,7 +69,6 @@ internal fun ApkMirrorVerificationDialog(
         title = stringResource(R.string.home_download_inbuilt_verification_title),
         description = stringResource(R.string.home_download_inbuilt_verification_description),
         scrollable = false,
-        fillContentHeight = false,
         footer = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -85,14 +84,14 @@ internal fun ApkMirrorVerificationDialog(
                         runCatching { CookieManager.getInstance().flush() }
                         onVerificationCompleted()
                     },
-                    icon = Icons.Outlined.Check,
+                    icon = MaterialSymbols.Rounded.Check,
                     modifier = Modifier.fillMaxWidth()
                 )
 
                 AppDialogOutlinedButton(
                     text = stringResource(android.R.string.cancel),
                     onClick = onDismissRequest,
-                    icon = Icons.Outlined.Close,
+                    icon = MaterialSymbols.Rounded.Close,
                     modifier = Modifier.fillMaxWidth()
                 )
             }

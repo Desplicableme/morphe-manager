@@ -8,6 +8,7 @@ on:
 jobs:
   pull:
     name: Pull translations from Crowdin
+    if: github.repository == 'MorpheApp/morphe-manager' || (secrets.CROWDIN_PROJECT_ID != '' && secrets.CROWDIN_PERSONAL_TOKEN != '')
     permissions:
       contents: write
     runs-on: ubuntu-latest
@@ -63,6 +64,13 @@ jobs:
         run: |
           chmod +x ./gradlew
           ./gradlew :app:assembleDebug -PnoProguard -PsignAsDebug
+
+      # A placeholder a translator got wrong crashes the app in that language, so it stops the merge
+      - name: Check translation placeholders
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          _JAVA_OPTIONS: "-Djava.awt.headless=true"
+        run: ./gradlew :app:testDebugUnitTest --tests "app.morphe.manager.TranslationFormatTest"
 
       # Step 3: Checkout dev branch to prepare for merging
       - name: Checkout dev branch for merge

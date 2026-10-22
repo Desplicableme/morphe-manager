@@ -7,9 +7,6 @@ package app.morphe.manager.ui.screen.home
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.CloudDownload
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -22,14 +19,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import app.morphe.manager.R
 import app.morphe.manager.ui.screen.shared.*
-import app.morphe.manager.util.formatBytesForReport
 import app.morphe.manager.util.withVersionPrefix
+import com.composables.icons.materialsymbols.MaterialSymbols
+import com.composables.icons.materialsymbols.rounded.Close
+import com.composables.icons.materialsymbols.rounded.Cloud_download
 
 /**
  * Dialog displaying active APK/XAPK download progress from APKMirror.
  */
 @Composable
-internal fun ApkDownloadProgressDialog(
+internal fun DialogHostScope.ApkDownloadProgressDialog(
     appName: String,
     status: String,
     progress: Float?,
@@ -56,7 +55,7 @@ internal fun ApkDownloadProgressDialog(
             AppDialogButton(
                 text = stringResource(android.R.string.cancel),
                 onClick = onCancel,
-                icon = Icons.Outlined.Close,
+                icon = MaterialSymbols.Rounded.Close,
                 modifier = Modifier.fillMaxWidth()
             )
         }
@@ -64,12 +63,12 @@ internal fun ApkDownloadProgressDialog(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = Defaults.ContentPadding),
+                .padding(vertical = Defaults.SpaceLarge),
             verticalArrangement = Arrangement.spacedBy(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Icon(
-                imageVector = Icons.Outlined.CloudDownload,
+                imageVector = MaterialSymbols.Rounded.Cloud_download,
                 contentDescription = null,
                 tint = accentColor,
                 modifier = Modifier.size(48.dp)

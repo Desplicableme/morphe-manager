@@ -30,9 +30,12 @@ import androidx.core.content.pm.PackageInfoCompat
 import app.morphe.manager.domain.apk.ApkSignatureCache
 import app.morphe.manager.patcher.split.SplitApkPreparer
 import app.morphe.patcher.apk.ApkUtils
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import java.io.File
+import java.io.IOException
 import java.security.MessageDigest
 
 @SuppressLint("QueryPermissionsNeeded")
@@ -96,7 +99,11 @@ class PM(
             null
         }
 
-    fun getPackageInfo(file: File): PackageInfo? {
+    /** [file] read as a package, its label and icon loadable. [flags] narrows what is parsed. */
+    fun getPackageInfo(
+        file: File,
+        flags: Int = PackageManager.GET_META_DATA or PackageManager.GET_ACTIVITIES
+    ): PackageInfo? {
         if (!file.exists()) return null
         val path = file.absolutePath
 
@@ -109,7 +116,7 @@ class PM(
         // For regular APKs, first attempt to use Android PackageManager for full icon/metadata support
         @Suppress("DEPRECATION")
         val pkgInfo = try {
-            app.packageManager.getPackageArchiveInfo(path, PackageManager.GET_META_DATA or PackageManager.GET_ACTIVITIES)
+            app.packageManager.getPackageArchiveInfo(path, flags)
         } catch (_: Exception) {
             null
         } ?: try {
@@ -256,8 +263,7 @@ class PM(
         if (recorded.isEmpty()) return false
         val sourceDir = getApplicationInfo(packageName)?.sourceDir ?: return false
         val onDisk = getApkFileSignatureHashes(File(sourceDir))
-        if (onDisk.isEmpty()) return false
-        return onDisk.none { it in recorded }
+        return onDisk.isNotEmpty() && onDisk.none { it in recorded }
     }
 
     /** Certificate fingerprints the package manager holds for [packageName], without disk access. */
@@ -294,10 +300,8 @@ class PM(
         isPatchManagerInstaller(getInstallerPackageName(packageName))
 
     /** [isInstalledByPatchManager] for callers that already resolved the installer. */
-    fun isPatchManagerInstaller(installer: String?): Boolean {
-        if (installer == null) return false
-        return installer == app.packageName || installer in PATCH_MANAGER_PACKAGES
-    }
+    fun isPatchManagerInstaller(installer: String?): Boolean =
+        installer != null && (installer == app.packageName || installer in PATCH_MANAGER_PACKAGES)
 
     /**
      * Extracts SHA-256 certificate fingerprints from an APK file.
@@ -459,23 +463,28 @@ internal fun matchesSavedApkRecord(
 /** Lowercase hex of these bytes, the form every digest and fingerprint here is compared in. */
 private fun ByteArray.toHex(): String = joinToString("") { byte -> "%02x".format(byte) }
 
-/** SHA-256 fingerprint of an encoded certificate, alike from the platform, apksig or a keystore. */
+/** SHA-256 fingerprint of an encoded certificate, alike from the platform, the APK signer or a keystore. */
 fun ByteArray.sha256Fingerprint(): String = MessageDigest.getInstance("SHA-256").digest(this).toHex()
 
-fun File.sha256OrNull(): String? = runCatching {
-    if (!isFile) return@runCatching null
+/** SHA-256 of this file, or null when it cannot be read. Stops reading as soon as its caller is canceled. */
+suspend fun File.sha256OrNull(): String? {
+    if (!isFile) return null
     val digest = MessageDigest.getInstance("SHA-256")
-    inputStream().use { input ->
-        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-        while (!Thread.currentThread().isInterrupted) {
-            val read = input.read(buffer)
-            if (read < 0) break
-            digest.update(buffer, 0, read)
+    try {
+        inputStream().use { input ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (true) {
+                currentCoroutineContext().ensureActive()
+                val read = input.read(buffer)
+                if (read < 0) break
+                digest.update(buffer, 0, read)
+            }
         }
+    } catch (_: IOException) {
+        return null
     }
-    if (Thread.currentThread().isInterrupted) return@runCatching null
-    digest.digest().toHex()
-}.getOrNull()
+    return digest.digest().toHex()
+}
 
 /** Opens the system screen that lets the user grant the "install unknown apps" permission. */
 object RequestInstallAppsContract : ActivityResultContract<String, Boolean>(), KoinComponent {
