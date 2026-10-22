@@ -44,6 +44,11 @@ data class StorageStats(
                 keystoreBytes + appDataBytes + totalCacheBytes
 
     companion object {
+        /**
+         * Bytes that a clear-up can remove. Anything under [MIN_REMOVABLE_BYTES] counts as nothing to remove.
+         */
+        const val MIN_REMOVABLE_BYTES = 1024L
+
         val Empty = StorageStats(
             originalApksBytes = 0L,
             patchedApksBytes = 0L,

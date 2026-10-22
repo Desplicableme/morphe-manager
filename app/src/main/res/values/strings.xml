@@ -200,6 +200,8 @@
     <string name="sources_management_experimental_versions_toggle">Experimental app versions</string>
     <string name="sources_management_experimental_versions_toggle_description">Shows and patches experimental app targets</string>
     <string name="sources_management_already_exists">This source has already been added</string>
+    <string name="sources_management_no_bundle">Could not find a patch bundle at this address.</string>
+    <string name="sources_dialog_checking">Checking…</string>
     <string name="sources_management_invalid_url">Invalid source URL. Please check the address and try again</string>
     <string name="sources_management_blocked">This patch source is blocked and cannot be added</string>
     <string name="sources_management_source_blocked_badge">Blocked</string>

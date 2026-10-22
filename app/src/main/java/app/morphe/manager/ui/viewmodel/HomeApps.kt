@@ -17,8 +17,10 @@ import app.morphe.manager.data.room.apps.installed.InstallType
 import app.morphe.manager.data.room.apps.installed.InstalledApp
 import app.morphe.manager.domain.apk.*
 import app.morphe.manager.domain.bundles.*
+import app.morphe.manager.domain.bundles.AppSourceChoice
 import app.morphe.manager.domain.bundles.PatchBundleSource.Extensions.asRemoteOrNull
 import app.morphe.manager.domain.bundles.PatchBundleSource.Extensions.avatarUrls
+import app.morphe.manager.domain.bundles.asNameFact
 import app.morphe.manager.domain.installer.RootInstaller
 import app.morphe.manager.domain.manager.*
 import app.morphe.manager.domain.repository.*
@@ -704,6 +706,7 @@ class HomeApps(
         // Keep source sections in repository order. Home sorting should reorder app cards
         // inside each source section, not move source headers around.
         val sourceOrder = sources.keys.mapIndexed { index, uid -> uid to index }.toMap()
+        val nameFacts = sources.values.map { it.asNameFact() }
         return enabledInfo.values
             .sortedWith(
                 compareBy(
@@ -727,7 +730,7 @@ class HomeApps(
                     }
                     val source = sources[info.uid]
                     val avatarUrls = source?.avatarUrls
-                    val sourceName = source?.displayTitle
+                    val sourceName = source?.let { AppSourceChoice.displaySourceName(it.asNameFact(), nameFacts) }
                         ?.takeUnless { it.isBlank() }
                         ?: info.name.takeUnless { it.isBlank() }
                         ?: "#${info.uid}"

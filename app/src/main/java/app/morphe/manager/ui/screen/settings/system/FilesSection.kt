@@ -53,6 +53,16 @@ import org.koin.compose.koinInject
 private const val FINGERPRINT_BYTES_PER_LINE = 8
 
 /**
+ * The fingerprint as a screen reader says it: the lines one after another, separated by a comma, with no line break in
+ * the text. The bytes are read as they are shown, so [sha256] is any hex string, such as the one the key stores.
+ */
+internal fun fingerprintSpokenLines(sha256: String): String =
+    sha256.uppercase()
+        .chunked(2)
+        .chunked(FINGERPRINT_BYTES_PER_LINE)
+        .joinToString(", ") { line -> line.joinToString(":") }
+
+/**
  * The files the manager works with: where the APKs it patches come from and what it keeps on the
  * device, then the backups of it: the signing key, which a lost install cannot recreate, and the
  * manager's settings.
@@ -328,6 +338,7 @@ private fun SigningKeyPreview(key: SigningKeyInfo) {
                 value = fingerprintBytes
                     .chunked(FINGERPRINT_BYTES_PER_LINE)
                     .joinToString("\n") { it.joinToString(":") },
+                spokenValue = fingerprintSpokenLines(key.sha256),
                 label = stringResource(R.string.settings_system_signing_key_fingerprint),
                 textStyle = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center

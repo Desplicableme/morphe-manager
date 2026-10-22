@@ -134,13 +134,16 @@ fun HomeDialogs(
         AddSourceDialog(
             onDismiss = {
                 homeViewModel.showAddSourceDialog = false
+                homeViewModel.addSourceError = null
                 homeViewModel.clearPickedBundles()
             },
             onRemoteSubmit = { urls, chooseApps ->
-                homeViewModel.showAddSourceDialog = false
-                homeViewModel.createRemoteSources(urls, chooseApps)
-                onSourceAdded()
+                homeViewModel.submitRemoteSources(urls, chooseApps) {
+                    onSourceAdded()
+                }
             },
+            remoteChecking = homeViewModel.addSourceChecking,
+            remoteError = homeViewModel.addSourceError,
             onLocalSubmit = { chooseApps ->
                 homeViewModel.showAddSourceDialog = false
                 homeViewModel.importPickedBundles(chooseApps)

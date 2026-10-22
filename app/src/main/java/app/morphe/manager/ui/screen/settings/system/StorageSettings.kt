@@ -83,7 +83,7 @@ private fun StorageOverview(
     val clearedTemplate = stringResource(R.string.settings_system_storage_cleared)
 
     val onCleared: (Long) -> Unit = { freed ->
-        val message = if (freed <= 0L) nothingToClearText
+        val message = if (freed < StorageStats.MIN_REMOVABLE_BYTES) nothingToClearText
         else clearedTemplate.format(context.formatBytes(freed))
         messages.show(message)
     }
@@ -334,7 +334,7 @@ private fun CacheActionRow(
                         icon = MaterialSymbols.Rounded.Delete_sweep,
                         label = "${stringResource(R.string.clear)} (${LocalContext.current.formatBytes(bytes)})",
                         onClick = onClear,
-                        enabled = bytes > 0L,
+                        enabled = bytes >= StorageStats.MIN_REMOVABLE_BYTES,
                         destructive = true
                     )
                 )

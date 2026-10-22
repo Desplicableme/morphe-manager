@@ -17,6 +17,8 @@ import app.morphe.manager.domain.installer.InstallerManager
 import app.morphe.manager.domain.installer.RootInstaller
 import app.morphe.manager.domain.installer.SessionInstaller
 import app.morphe.manager.domain.manager.PreferencesManager
+import app.morphe.manager.domain.bundles.AppSourceChoice
+import app.morphe.manager.domain.bundles.asNameFact
 import app.morphe.manager.domain.manager.filterOptionsForTarget
 import app.morphe.manager.domain.manager.loadCopySelectionCandidates as loadCopySelectionCandidatesShared
 import app.morphe.manager.domain.repository.PatchBundleRepository
@@ -350,10 +352,13 @@ class SettingsViewModel(
             }
             .flowOn(Dispatchers.IO)
 
-    /** Bundle uid → bundle name */
+    /** Bundle uid → the name the bundle is shown under, with its repository where another source shares the name */
     val bundleNames: StateFlow<Map<Int, String>> =
         patchBundleRepository.sources
-            .map { bundles -> bundles.associate { it.uid to it.name } }
+            .map { bundles ->
+                val facts = bundles.map { it.asNameFact() }
+                facts.associate { it.uid to AppSourceChoice.displaySourceName(it, facts) }
+            }
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
     // Which sources an app is kept from is part of how it is configured, so a reset that clears

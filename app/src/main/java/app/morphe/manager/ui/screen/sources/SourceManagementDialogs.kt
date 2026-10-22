@@ -89,7 +89,9 @@ fun DialogHostScope.AddSourceDialog(
     onLocalPick: () -> Unit,
     onLocalRemove: (Uri) -> Unit,
     localFiles: List<PickedBundle>,
-    onCheckUrl: (String) -> RemoteUrlCheck
+    onCheckUrl: (String) -> RemoteUrlCheck,
+    remoteChecking: Boolean = false,
+    remoteError: String? = null
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) } // 0 = Remote, 1 = Local
     var chooseApps by rememberSaveable { mutableStateOf(false) }
@@ -138,10 +140,10 @@ fun DialogHostScope.AddSourceDialog(
                     }
                 }
                 AppDialogButtonRow(
-                    primaryText = if (readyCount > 1) {
-                        pluralStringResource(R.plurals.sources_dialog_add_count, readyCount, readyCount.toString())
-                    } else {
-                        stringResource(R.string.add)
+                    primaryText = when {
+                        remoteChecking -> stringResource(R.string.sources_dialog_checking)
+                        readyCount > 1 -> pluralStringResource(R.plurals.sources_dialog_add_count, readyCount, readyCount.toString())
+                        else -> stringResource(R.string.add)
                     },
                     onPrimaryClick = {
                         when (selectedTab) {
@@ -149,7 +151,7 @@ fun DialogHostScope.AddSourceDialog(
                             1 -> onLocalSubmit(chooseApps)
                         }
                     },
-                    primaryEnabled = readyCount > 0,
+                    primaryEnabled = readyCount > 0 && !remoteChecking,
                     secondaryText = stringResource(android.R.string.cancel),
                     onSecondaryClick = onDismiss
                 )
@@ -180,7 +182,7 @@ fun DialogHostScope.AddSourceDialog(
             }
         ) { tab ->
             when (tab) {
-                0 -> RemoteTabContent(state = remote)
+                0 -> RemoteTabContent(state = remote, error = remoteError)
                 1 -> LocalTabContent(
                     entries = localFiles,
                     onPickFiles = onLocalPick,
@@ -315,7 +317,7 @@ internal fun remoteLinkTitle(link: String): String {
 internal fun remoteLinkIcon(link: String): ImageVector = REPOSITORY_HOST_ICONS[link.linkHost()] ?: MaterialSymbols.Rounded.Link
 
 @Composable
-private fun RemoteTabContent(state: RemoteLinksState) {
+private fun RemoteTabContent(state: RemoteLinksState, error: String? = null) {
     val context = LocalContext.current
     val messages = koinInject<UserMessages>()
     val clipboard = LocalClipboard.current
@@ -385,6 +387,15 @@ private fun RemoteTabContent(state: RemoteLinksState) {
                 Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(15.dp))
                 Text(text, style = MaterialTheme.typography.bodySmall, color = color)
             }
+        }
+
+        // Why the links were not added, under the field they came from until the next submit
+        if (error != null) {
+            Text(
+                text = error,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error
+            )
         }
 
         // What a link can be, shown until the first one is in the list to point at
