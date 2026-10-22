@@ -109,14 +109,10 @@ jobs:
           cp "$APK_FILE" "$TARGET_APK"
           sha256sum "$TARGET_APK" > "${TARGET_APK}.sha256"
 
-          # Standard filename alias for broader compatibility
-          cp "$APK_FILE" "release_assets/morphe-manager-${VERSION}.apk"
-          sha256sum "release_assets/morphe-manager-${VERSION}.apk" > "release_assets/morphe-manager-${VERSION}.apk.sha256"
-
           echo "apk_path=$TARGET_APK" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-          echo "Prepared Release APKs:"
+          echo "Prepared Release APK:"
           ls -lh release_assets/
 
       - name: Upload APK as Workflow Artifact
