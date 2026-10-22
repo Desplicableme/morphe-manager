@@ -218,7 +218,6 @@ class PatchFlow(
     var apkMirrorDownloadBytes by mutableStateOf(0L to 0L)
         private set
     private var apkMirrorDownloadJob: Job? = null
-    private val headlessFailedUrls = mutableSetOf<String>()
     var showApkMirrorVerificationDialog by mutableStateOf(false)
         private set
     var apkMirrorVerificationUrl by mutableStateOf<String?>(null)
@@ -1533,13 +1532,9 @@ class PatchFlow(
     fun startInBuiltDownload(
         packageName: String? = session?.packageName,
         version: String? = session?.requestedVersion,
-        url: String? = session?.downloadUrl,
-        isHeadlessRetry: Boolean = false
+        url: String? = session?.downloadUrl
     ) {
         val pkg = packageName ?: return
-        if (!isHeadlessRetry) {
-            headlessFailedUrls.clear()
-        }
         dialogs.close(HomeDialog.DownloadInstructions)
         dialogs.close(HomeDialog.FilePickerPrompt)
 
@@ -1587,7 +1582,6 @@ class PatchFlow(
                     }
                 )
 
-                headlessFailedUrls.clear()
                 isApkMirrorDownloading = false
                 handleDownloadedApk(downloadedFile)
             } catch (_: kotlinx.coroutines.CancellationException) {
@@ -1595,46 +1589,6 @@ class PatchFlow(
                 isApkMirrorDownloading = false
             } catch (e: CloudflareVerificationException) {
                 Log.w(tag, "In-built download encountered Cloudflare challenge: ${e.verificationUrl}")
-                if (!headlessFailedUrls.contains(e.verificationUrl)) {
-                    Log.i(tag, "Attempting background verification for ${e.verificationUrl}...")
-                    apkMirrorDownloadStatus = app.getString(R.string.home_download_inbuilt_bypassing_verification)
-                    apkMirrorDownloadProgress = null
-
-                    val result = HeadlessApkMirrorVerifier.verify(
-                        context = app,
-                        verificationUrl = e.verificationUrl
-                    )
-
-                    when (result) {
-                        is HeadlessVerificationResult.Success -> {
-                            Log.i(tag, "Background verification succeeded (directUrl=${result.directDownloadUrl})")
-                            runCatching { CookieManager.getInstance().flush() }
-                            val targetPkg = e.packageName ?: session?.packageName ?: pkg
-                            val targetVer = e.versionName ?: session?.requestedVersion ?: version
-                            if (!result.directDownloadUrl.isNullOrBlank()) {
-                                startInBuiltDirectDownload(
-                                    directUrl = result.directDownloadUrl,
-                                    packageName = targetPkg,
-                                    version = targetVer,
-                                    isHeadlessRetry = true
-                                )
-                            } else {
-                                startInBuiltDownload(
-                                    packageName = targetPkg,
-                                    version = targetVer,
-                                    url = session?.downloadUrl ?: e.verificationUrl,
-                                    isHeadlessRetry = true
-                                )
-                            }
-                            return@launch
-                        }
-                        is HeadlessVerificationResult.RequiresInteraction,
-                        is HeadlessVerificationResult.Failed -> {
-                            Log.w(tag, "Background verification requires interaction ($result), marking failed for ${e.verificationUrl}")
-                            headlessFailedUrls.add(e.verificationUrl)
-                        }
-                    }
-                }
                 isApkMirrorDownloading = false
                 apkMirrorVerificationUrl = e.verificationUrl
                 apkMirrorVerificationPackage = e.packageName ?: session?.packageName
@@ -1651,13 +1605,9 @@ class PatchFlow(
     fun startInBuiltDirectDownload(
         directUrl: String,
         packageName: String? = session?.packageName,
-        version: String? = session?.requestedVersion,
-        isHeadlessRetry: Boolean = false
+        version: String? = session?.requestedVersion
     ) {
         val pkg = packageName ?: return
-        if (!isHeadlessRetry) {
-            headlessFailedUrls.clear()
-        }
         dialogs.close(HomeDialog.DownloadInstructions)
         dialogs.close(HomeDialog.FilePickerPrompt)
 
@@ -1701,7 +1651,6 @@ class PatchFlow(
                     }
                 )
 
-                headlessFailedUrls.clear()
                 isApkMirrorDownloading = false
                 handleDownloadedApk(downloadedFile)
             } catch (_: kotlinx.coroutines.CancellationException) {
@@ -1709,38 +1658,6 @@ class PatchFlow(
                 isApkMirrorDownloading = false
             } catch (e: CloudflareVerificationException) {
                 Log.w(tag, "Cloudflare re-challenge on direct URL: ${e.verificationUrl}")
-                if (!headlessFailedUrls.contains(e.verificationUrl)) {
-                    Log.i(tag, "Attempting background verification for direct URL ${e.verificationUrl}...")
-                    apkMirrorDownloadStatus = app.getString(R.string.home_download_inbuilt_bypassing_verification)
-                    apkMirrorDownloadProgress = null
-
-                    val result = HeadlessApkMirrorVerifier.verify(
-                        context = app,
-                        verificationUrl = e.verificationUrl
-                    )
-
-                    when (result) {
-                        is HeadlessVerificationResult.Success -> {
-                            Log.i(tag, "Background verification succeeded on direct URL (directUrl=${result.directDownloadUrl})")
-                            runCatching { CookieManager.getInstance().flush() }
-                            val targetPkg = e.packageName ?: session?.packageName ?: pkg
-                            val targetVer = e.versionName ?: session?.requestedVersion ?: version
-                            val resumeUrl = result.directDownloadUrl ?: directUrl
-                            startInBuiltDirectDownload(
-                                directUrl = resumeUrl,
-                                packageName = targetPkg,
-                                version = targetVer,
-                                isHeadlessRetry = true
-                            )
-                            return@launch
-                        }
-                        is HeadlessVerificationResult.RequiresInteraction,
-                        is HeadlessVerificationResult.Failed -> {
-                            Log.w(tag, "Background verification did not resolve ($result), marking failed for ${e.verificationUrl}")
-                            headlessFailedUrls.add(e.verificationUrl)
-                        }
-                    }
-                }
                 isApkMirrorDownloading = false
                 apkMirrorVerificationUrl = e.verificationUrl
                 apkMirrorVerificationPackage = e.packageName ?: session?.packageName
@@ -1757,17 +1674,13 @@ class PatchFlow(
     fun cancelApkMirrorDownload() {
         apkMirrorDownloadJob?.cancel()
         apkMirrorDownloadJob = null
-        headlessFailedUrls.clear()
         isApkMirrorDownloading = false
         apkMirrorDownloadProgress = null
         apkMirrorDownloadStatus = ""
-        HeadlessApkMirrorVerifier.cleanup()
     }
 
     fun onApkMirrorVerificationResolved(directUrl: String? = null) {
         showApkMirrorVerificationDialog = false
-        headlessFailedUrls.clear()
-        HeadlessApkMirrorVerifier.cleanup()
         val pkg = session?.packageName ?: apkMirrorVerificationPackage ?: return
         val version = session?.requestedVersion
 
@@ -1782,8 +1695,6 @@ class PatchFlow(
         showApkMirrorVerificationDialog = false
         apkMirrorVerificationUrl = null
         apkMirrorVerificationPackage = null
-        headlessFailedUrls.clear()
-        HeadlessApkMirrorVerifier.cleanup()
         endRun()
     }
 

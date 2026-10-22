@@ -32,15 +32,12 @@ import com.composables.icons.materialsymbols.rounded.Check
 import com.composables.icons.materialsymbols.rounded.Close
 
 /**
- * In-app WebView verification dialog for APKMirror Cloudflare verification and downloads.
+ * In-app WebView verification dialog for APKMirror Cloudflare verification and downloads (ReVanced Manager style).
  *
- * Renders an embedded browser dialog allowing the user to complete verification prompts
- * or initiate the download without needing to switch back and forth to an external browser.
+ * Renders a single, steady embedded browser dialog allowing the user to complete verification prompts
+ * or initiate the download without rapid opening/closing or leaving the application.
  *
- * If background bypass required user interaction, reuses the active [WebView] instance directly
- * so the challenge page does not need to be reloaded from scratch.
- *
- * Once verified by the user or when a download link is triggered, captures cookies into [CookieManager]
+ * Once verified or when a download link is triggered, captures cookies into [CookieManager]
  * and returns the direct download stream to Morphe's in-built download and patching pipeline.
  */
 @SuppressLint("SetJavaScriptEnabled")
@@ -69,15 +66,11 @@ internal fun DialogHostScope.ApkMirrorVerificationDialog(
                 destroy()
             }
             webViewRef = null
-            HeadlessApkMirrorVerifier.cleanup()
         }
     }
 
     AppDialog(
-        onDismissRequest = {
-            HeadlessApkMirrorVerifier.cleanup()
-            onDismissRequest()
-        },
+        onDismissRequest = onDismissRequest,
         accentColor = accentColor,
         title = stringResource(R.string.home_download_inbuilt_verification_title),
         description = stringResource(R.string.home_download_inbuilt_verification_description),
@@ -95,7 +88,24 @@ internal fun DialogHostScope.ApkMirrorVerificationDialog(
                     },
                     onClick = {
                         runCatching { CookieManager.getInstance().flush() }
-                        onVerificationCompleted()
+                        webViewRef?.evaluateJavascript(
+                            """
+                            (function() {
+                                var dl = document.querySelector('a#download-link, a[href*="download.php"]');
+                                if (dl && dl.href) return dl.href;
+                                var btn = document.querySelector('a.downloadButton, a[href*="/download/?key="]');
+                                if (btn) { btn.click(); return 'clicked'; }
+                                return '';
+                            })();
+                            """.trimIndent()
+                        ) { result ->
+                            val directUrl = result?.trim('"', '\'').orEmpty()
+                            if (directUrl.isNotBlank() && directUrl != "clicked" && ApkMirrorDownloader.isDirectDownloadUrl(directUrl)) {
+                                onDownloadReady(directUrl)
+                            } else {
+                                onVerificationCompleted()
+                            }
+                        }
                     },
                     icon = MaterialSymbols.Rounded.Check,
                     modifier = Modifier.fillMaxWidth()
@@ -103,10 +113,7 @@ internal fun DialogHostScope.ApkMirrorVerificationDialog(
 
                 AppDialogOutlinedButton(
                     text = stringResource(android.R.string.cancel),
-                    onClick = {
-                        HeadlessApkMirrorVerifier.cleanup()
-                        onDismissRequest()
-                    },
+                    onClick = onDismissRequest,
                     icon = MaterialSymbols.Rounded.Close,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -116,7 +123,7 @@ internal fun DialogHostScope.ApkMirrorVerificationDialog(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(420.dp)
+                .height(460.dp)
                 .clip(RoundedCornerShape(16.dp)),
             shape = RoundedCornerShape(16.dp),
             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
@@ -125,8 +132,7 @@ internal fun DialogHostScope.ApkMirrorVerificationDialog(
             Box(modifier = Modifier.fillMaxSize()) {
                 AndroidView(
                     factory = { ctx ->
-                        val existing = HeadlessApkMirrorVerifier.takeActiveWebView()
-                        val wv = existing ?: WebView(ctx).apply {
+                        val wv = WebView(ctx).apply {
                             layoutParams = ViewGroup.LayoutParams(
                                 ViewGroup.LayoutParams.MATCH_PARENT,
                                 ViewGroup.LayoutParams.MATCH_PARENT
@@ -170,14 +176,14 @@ internal fun DialogHostScope.ApkMirrorVerificationDialog(
                                 super.onPageFinished(view, url)
                                 isLoading = false
                                 val title = view?.title.orEmpty()
+                                val pageUrl = url ?: view?.url.orEmpty()
                                 val cookies = runCatching {
                                     CookieManager.getInstance().getCookie("https://www.apkmirror.com").orEmpty()
                                 }.getOrDefault("")
                                 val hasCfClearance = cookies.contains("cf_clearance")
-                                val isChallenge = HeadlessApkMirrorVerifier.isChallenge(title, url.orEmpty())
-                                val isContentPage = HeadlessApkMirrorVerifier.isContentPage(title, url.orEmpty())
+                                val isChallenge = HeadlessApkMirrorVerifier.isChallenge(title, pageUrl)
 
-                                if (hasCfClearance || isContentPage) {
+                                if (!isChallenge || hasCfClearance) {
                                     isSolved = true
                                     runCatching { CookieManager.getInstance().flush() }
                                     view?.evaluateJavascript(HeadlessApkMirrorVerifier.AUTO_CLICK_JS, null)
@@ -185,18 +191,7 @@ internal fun DialogHostScope.ApkMirrorVerificationDialog(
                             }
                         }
 
-                        if (existing != null) {
-                            isLoading = existing.progress < 100
-                            val currentCookies = runCatching {
-                                CookieManager.getInstance().getCookie("https://www.apkmirror.com").orEmpty()
-                            }.getOrDefault("")
-                            if (currentCookies.contains("cf_clearance")) {
-                                isSolved = true
-                            }
-                        } else {
-                            wv.loadUrl(verificationUrl)
-                        }
-
+                        wv.loadUrl(verificationUrl)
                         webViewRef = wv
                         wv
                     },
