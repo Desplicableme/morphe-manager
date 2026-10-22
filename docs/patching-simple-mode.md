@@ -57,55 +57,22 @@ when it is not.
   this is your first patch.
 - **No, I already have an APK** - skips straight to the file picker in step 5.
 
-## 3. Follow the download instructions
+## 3. In-Built Download or Download Instructions
 
-Morphe explains what to do on the download site. Read the four steps, then tap
-**Continue to APKMirror.com**. Morphe opens the correct download page for the required
-version in your browser. **Copy link** puts the same address on your clipboard instead, and
-with a trusted [download helper](apk-download-helper.md) a **Use a helper app** button is
-offered as well.
+Morphe provides two ways to get the required original APK:
 
-<p align="center">
-  <img src="images/patching-simple-mode/03-download-instructions.jpg" width="320" alt="Instructions for downloading the original APK" />
-</p>
+### Option A: In-Built 1-Tap Download (Recommended)
+In this Enhanced Edition, you don't even have to leave Morphe! Tap the **Download APK** / **Download APKM Bundle** button at the bottom of the dialog or tap the simulated site button:
+- Morphe crawls and fetches the exact required version directly from APKMirror.
+- A live progress indicator displays download speed, current megabytes, and completion percentage.
+- **Silent Background Verification**: If APKMirror presents a Cloudflare bot check, Morphe attempts to resolve it automatically in the background without showing any browser popup. Only if an interactive captcha is strictly required does an in-app WebView appear so you can complete it without ever switching apps.
+- Once finished, Morphe **automatically selects and verifies the APK**, immediately starting the patching process without needing you to open your file manager!
 
-> [!IMPORTANT]
-> The red **DOWNLOAD APK** button on this screen is only a picture of what to look for on
-> the website. Tapping it does nothing but show you a friendly reminder.
-
-## 4. Download the original APK
-
-On the website, scroll down to the download section and press the real **DOWNLOAD APK**
-button.
-
-<p align="center">
-  <img src="images/patching-simple-mode/04-apkmirror-download.jpg" width="420" alt="The DOWNLOAD APK button on the website" />
-</p>
-
-Two things to keep in mind:
-
-- **Do not install the APK** after it downloads. Morphe needs the untouched file.
-- **Ignore any "a more recent upload may be available" notice.** Download exactly the
-  version Morphe asked for in step 2, not a newer one.
-
-When the download finishes, return to Morphe.
-
-## 5. Select the downloaded APK
-
-Morphe asks for the file you just downloaded. Tap **Open APK file** and pick it in the file
-picker, usually from the **Downloads** folder.
-
-<p align="center">
-  <img src="images/patching-simple-mode/05-select-apk.jpg" width="320" alt="Prompt to select the downloaded APK file" />
-</p>
-
-Morphe verifies the file before continuing and warns you if the package, version, or
-signing certificate does not match what the patches expect.
-
-> [!TIP]
-> If the file cannot be selected or opened, move it out of **Downloads** to the root of your
-> internal storage and try again. You can also switch to
-> [Morphe's built-in file picker](file-picker.md).
+### Option B: External Browser Download
+If you prefer downloading manually via your web browser:
+1. Tap **Continue to APKMirror.com** to open the download page in your browser (or use **Copy link** / **Use a helper app**).
+2. On the website, scroll down to the download section and press the **DOWNLOAD APK** button.
+3. Return to Morphe and tap **Open APK file** to select the downloaded file from your **Downloads** folder.
 
 ## 6. Wait for patching to finish
 

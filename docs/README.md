@@ -4,8 +4,9 @@ Step-by-step guides for using Morphe. If you are new here, start with the first 
 
 ## 🩹 Patching
 
-- **[Patching an app in Simple mode](patching-simple-mode.md)** - your first patch, from
-  picking an app to installing the result. No configuration needed.
+- **[Patching an app in Simple mode](patching-simple-mode.md)** - your first patch, featuring
+  1-tap in-built APKMirror download with silent background verification, automatic file attachment,
+  and curated defaults.
 - **[The home screen and managing apps](home-screen.md)** - sorting, grouping, hiding, and
   bulk actions on your app list.
 - **[Patching an app in Expert mode](patching-expert-mode.md)** - choosing individual
@@ -32,8 +33,8 @@ Step-by-step guides for using Morphe. If you are new here, start with the first 
 
 - **[Backing up Morphe and your keystore](backup-and-keystore.md)** - why the keystore
   matters, and how to move everything to another device.
-- **[Storage and saved data](storage-and-saved-data.md)** - what Morphe keeps on your device,
-  what is safe to clear, and how saved patch selections work.
+- **[Storage and saved data](storage-and-saved-data.md)** - 1-tap Quick Clean, auto-deletion
+  of original APKs after patching, and managing what Morphe keeps on your device.
 - **[Using the built-in file picker](file-picker.md)** - Morphe's own file browser, for when
   the system picker gets in the way.
 - **[Using an APK download helper](apk-download-helper.md)** - letting another app fetch

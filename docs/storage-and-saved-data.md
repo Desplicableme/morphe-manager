@@ -30,6 +30,13 @@ The last four are caches, listed under **Caches** further down with a **Clear** 
 and Morphe spells out what that means: cached network responses, staged installer copies, and
 temporary files go, while **original and patched APKs are kept**.
 
+### 🧹 Enhanced Storage & Auto-Cleanup Suite
+In this Enhanced Edition, Morphe includes automated storage management features designed to keep your device's storage clean without manual effort:
+
+- **1-Tap Quick Clean**: Instantly cleans patcher runtime workspace files, HTTP cache, and orphaned scratch data while preserving your patched APKs and keystore.
+- **Auto-delete original APKs after patch**: Automatically deletes the original pre-patch APK once patching and installation succeed, saving 100–200 MB per patched app.
+- **Auto-clear cache after patching**: Automatically purges temporary workspace build files immediately after a patch run ends.
+
 **Open Android app storage** hands you over to the system screen, where clearing data wipes
 everything, including the keystore, see
 [Backing up Morphe and your keystore](backup-and-keystore.md).

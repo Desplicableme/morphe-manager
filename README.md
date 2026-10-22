@@ -30,20 +30,22 @@
 [![Build Status](https://img.shields.io/github/actions/workflow/status/Desplicableme/morphe-manager/build_and_publish.yml?label=Build%20%26%20Publish)](https://github.com/Desplicableme/morphe-manager/actions)
 [![Upstream Sync](https://img.shields.io/github/actions/workflow/status/Desplicableme/morphe-manager/sync_upstream.yml?label=Upstream%20Sync)](https://github.com/Desplicableme/morphe-manager/actions)
 
-> Enhanced, fully self-contained fork of [Morphe](https://github.com/MorpheApp/morphe-manager) with an **in-built APKMirror downloader**, **split APK extraction**, and **automated storage cleanup**.
+> Enhanced, fully self-contained fork of [Morphe](https://github.com/MorpheApp/morphe-manager) based on **v2.0.0** with an **in-built APKMirror downloader**, **silent background verification**, **split APK extraction**, and **storage auto-cleanup**.
 
 ---
 
 ### 🚀 What's New in This Enhanced Edition?
 
-* 📥 **In-Built APKMirror Downloader**: Directly searches, resolves, and downloads APKs and APKM split bundles from within Morphe. No manual browser hops or file hunting required.
-* 🛡️ **In-App WebView Verification**: When APKMirror presents Cloudflare challenges or download confirmations, an embedded WebView lets you complete verification in-app, then automatically intercepts the download stream and begins patching.
-* ⚡ **Installed App & Split APK Extraction**: If the target application is already installed on your device, Morphe automatically extracts its local `base.apk` and split APKs via Android's `PackageManager`, bypassing the need to download anything from the web.
+* 📥 **In-Built APKMirror Downloader**: Directly searches, crawls, and downloads required APKs and APKM/XAPK split bundles inside Morphe with live speed, byte progress, and auto-attachment to the patcher pipeline.
+* 🛡️ **Silent Background Cloudflare Bypass**: Automatically evaluates challenges and download triggers offscreen. You never see a web dialog unless an interactive captcha click is strictly required, at which point an in-app verification dialog lets you solve it seamlessly without leaving the app.
+* ⚡ **Installed Split APK Extraction**: If the app is already installed on your device, Morphe directly extracts the base and split APKs via Android's `PackageManager`, bypassing external downloads entirely.
+* 🔄 **Continuous In-App Updates**: Built-in release update channels point directly to this fork with consistent cryptographic release signing so you never have to uninstall your previous release to update.
 * 🧹 **Complete Storage Management Suite**:
-  - **1-Tap Quick Clean**: Instantly purges temporary patcher workspace folders, cache directories, and leftover downloaded APKs.
+  - **1-Tap Quick Clean**: Instantly purges patcher workspace folders, network caches, and orphaned temporary files.
   - **Auto-Deletion Settings**: Opt-in toggles to automatically wipe downloaded source APKs and clear caches after patching successfully finishes.
+* ⚙️ **v2.0.0 Core Architecture**: Built on Morphe's high-efficiency `:patcher-core` engine with embedded JDK 25 runtime and Material 3 Expressive UI.
 
-[⬇️ **Download Latest Enhanced APK (v1.35.0-enhanced)**](https://github.com/Desplicableme/morphe-manager/releases/latest)
+[⬇️ **Download Latest Enhanced APK (v2.0.0-enhanced)**](https://github.com/Desplicableme/morphe-manager/releases/latest)
 
 ---
 
