@@ -37,8 +37,11 @@ private const val NOTICE_UNIQUE_ID = "app.morphe.manager"
 private val urlRegex = Regex("(https?://[\\w./?=&%-]+)")
 // Copied verbatim from NOTICE in project root. Update manually if NOTICE changes.
 private const val NOTICE_TEXT = """
-Morphe NOTICE
+Morphe (Enhanced Edition) NOTICE
 
+https://github.com/Desplicableme/morphe-manager
+
+Upstream:
 https://github.com/MorpheApp/morphe-manager
 
 =============

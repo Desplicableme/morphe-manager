@@ -7,6 +7,7 @@ package app.morphe.manager.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import app.morphe.manager.ui.screen.shared.autoMirrored
+import app.morphe.manager.util.MANAGER_REPO_URL
 import app.morphe.manager.util.MORPHE_WEBSITE_URL
 import com.composables.icons.fontawesome.FontAwesome
 import com.composables.icons.fontawesome.brands.*
@@ -24,16 +25,16 @@ class AboutViewModel : ViewModel() {
         val socials: List<SocialLink> = listOf(
             SocialLink(
                 name = "Website",
-                url = MORPHE_WEBSITE_URL,
+                url = MANAGER_REPO_URL,
                 preferred = true
             ),
             SocialLink(
                 name = "Changelog",
-                url = "$MORPHE_WEBSITE_URL/changelog"
+                url = "$MANAGER_REPO_URL/releases"
             ),
             SocialLink(
                 name = "GitHub",
-                url = "https://github.com/MorpheApp"
+                url = MANAGER_REPO_URL
             ),
             SocialLink(
                 name = "Reddit",

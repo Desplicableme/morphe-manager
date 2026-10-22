@@ -32,16 +32,16 @@ private val currentContributors = listOf(
     Contributor(
         name = "Arka Mandal",
         organisation = "Desplicableme",
-        url = "https://github.com/Desplicableme"
-    ),
-    Contributor(
-        name = "Morphe",
-        organisation = "MorpheApp",
-        url = "https://github.com/MorpheApp/morphe-manager/graphs/contributors"
+        url = "https://github.com/Desplicableme/morphe-manager"
     )
 )
 
 private val priorContributors = listOf(
+    Contributor(
+        name = "Morphe",
+        organisation = "MorpheApp",
+        url = "https://github.com/MorpheApp/morphe-manager/graphs/contributors"
+    ),
     Contributor(
         name = "URV",
         organisation = "Jman-Github",
