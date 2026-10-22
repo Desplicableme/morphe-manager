@@ -12,14 +12,14 @@
     />
 </picture>
 
-[![Website badge](https://img.shields.io/badge/Website-gray.svg?logo=data:image/svg%2bxml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiIHN0YW5kYWxvbmU9Im5vIj8+CjwhLS0gQ29weXJpZ2h0IDIwMjUgTW9ycGhlLiBUaGlzIGlzIGNvcHlyaWdodGVkIGNvbnRlbnQsIGFuZCBub3QgbGljZW5zZWQgdW5kZXIgb3BlbiBzb3VyY2UgdGVybXMuCiAgICAgU2VlIGh0dHBzOi8vZ2l0aHViLmNvbS9Nb3JwaGVBcHAvbW9ycGhlLWJyYW5kaW5nIC0tPgoKPHN2ZwogICB3aWR0aD0iNTEyIgogICBoZWlnaHQ9IjUxMiIKICAgdmlld0JveD0iMCAwIDUxMiA1MTIiCiAgIHZlcnNpb249IjEuMSIKICAgaWQ9InN2ZzIiCiAgIHNvZGlwb2RpOmRvY25hbWU9Im1vcnBoZV9sb2dvX2xpZ2h0LnN2ZyIKICAgaW5rc2NhcGU6dmVyc2lvbj0iMS40LjIgKGViZjBlOTQwZDAsIDIwMjUtMDUtMDgpIgogICB4bWxuczppbmtzY2FwZT0iaHR0cDovL3d3dy5pbmtzY2FwZS5vcmcvbmFtZXNwYWNlcy9pbmtzY2FwZSIKICAgeG1sbnM6c29kaXBvZGk9Imh0dHA6Ly9zb2RpcG9kaS5zb3VyY2Vmb3JnZS5uZXQvRFREL3NvZGlwb2RpLTAuZHRkIgogICB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciCiAgIHhtbG5zOnN2Zz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgogIDxzb2RpcG9kaTpuYW1lZHZpZXcKICAgICBpZD0ibmFtZWR2aWV3MiIKICAgICBwYWdlY29sb3I9IiNmZmZmZmYiCiAgICAgYm9yZGVyY29sb3I9IiMwMDAwMDAiCiAgICAgYm9yZGVyb3BhY2l0eT0iMC4yNSIKICAgICBpbmtzY2FwZTpzaG93cGFnZXNoYWRvdz0iMiIKICAgICBpbmtzY2FwZTpwYWdlb3BhY2l0eT0iMC4wIgogICAgIGlua3NjYXBlOnBhZ2VjaGVja2VyYm9hcmQ9IjAiCiAgICAgaW5rc2NhcGU6ZGVza2NvbG9yPSIjZDFkMWQxIgogICAgIGlua3NjYXBlOnpvb209IjEuMTU0Mjk2OSIKICAgICBpbmtzY2FwZTpjeD0iMjU2IgogICAgIGlua3NjYXBlOmN5PSIyNTYiCiAgICAgaW5rc2NhcGU6d2luZG93LXdpZHRoPSIxNDQwIgogICAgIGlua3NjYXBlOndpbmRvdy1oZWlnaHQ9IjgzNiIKICAgICBpbmtzY2FwZTp3aW5kb3cteD0iMCIKICAgICBpbmtzY2FwZTp3aW5kb3cteT0iMCIKICAgICBpbmtzY2FwZTp3aW5kb3ctbWF4aW1pemVkPSIxIgogICAgIGlua3NjYXBlOmN1cnJlbnQtbGF5ZXI9InN2ZzIiPgogICAgPGlua3NjYXBlOnBhZ2UKICAgICAgIHg9IjAiCiAgICAgICB5PSIwIgogICAgICAgd2lkdGg9IjUxMiIKICAgICAgIGhlaWdodD0iNTEyIgogICAgICAgaWQ9InBhZ2UyIgogICAgICAgbWFyZ2luPSIwIgogICAgICAgYmxlZWQ9IjAiIC8+CiAgPC9zb2RpcG9kaTpuYW1lZHZpZXc+CiAgPGRlZnMKICAgICBpZD0iZGVmczIiIC8+CiAgPCEtLSBMZXR0ZXIgLS0+CiAgPGcKICAgICBpZD0iTGV0dGVyIgogICAgIHN0eWxlPSJmaWxsOiNmZmZmZmY7ZmlsbC1vcGFjaXR5OjEiPgogICAgPHBhdGgKICAgICAgIGlkPSJMZWZ0IgogICAgICAgZD0ibSAxMjMsMTQwIGMgLTIxLDAgLTM5LDE3IC00MCwzOCB2IDE5MiBjIDEsMjEgMTksMzggNDAsMzggMjEsMCAzOSwtMTcgNDAsLTM4IFYgMTc4IGMgLTEsLTIxIC0xOSwtMzggLTQwLC0zOCB6IgogICAgICAgZmlsbD0iIzFFNUFBOCIKICAgICAgIHN0eWxlPSJmaWxsOiNmZmZmZmY7ZmlsbC1vcGFjaXR5OjEiIC8+CiAgICA8cGF0aAogICAgICAgaWQ9IlJpZ2h0IgogICAgICAgZD0ibSAzNDksMjg1IHYgODUgYyAxLDIxIDE5LDM4IDQwLDM4IDIxLDAgMzksLTE3IDQwLC0zOCBWIDE4MiBjIC0xMSwtMTQgLTc0LDYzIC04MCwxMDMgeiIKICAgICAgIGZpbGw9IiMwMEFGQUUiCiAgICAgICBzdHlsZT0iZmlsbDojZmZmZmZmO2ZpbGwtb3BhY2l0eToxIiAvPgogICAgPHBhdGgKICAgICAgIGlkPSJNaWRkbGUiCiAgICAgICBkPSJtIDEyNywxMDggYyAtMzQsMCAtNDQsMjUgLTQ0LDQwIHYgNTQgYyAzMCwtMzMgNzUsMjcgODAsMzMgMjgsMzIgNDQsODcgOTMsODkgNDgsLTIgNjcsLTU2IDkzLC04OSAwLDAgNDUsLTc0IDgwLC04MCAwLC0yOCAtMTEsLTQ3IC00NCwtNDcgLTM0LDAgLTU4LDUwIC03NSw3MiAtMTcsMjIgLTI1LDQ2IC01NCw0NiAtMjksMCAtMzgsLTI1IC01NCwtNDYgLTE3LC0yMiAtNDEsLTcyIC03NSwtNzIgeiIKICAgICAgIGZpbGw9InVybCgjbGluZWFyR3JhZGllbnQyKSIKICAgICAgIHN0eWxlPSJmaWxsOiNmZmZmZmY7ZmlsbC1vcGFjaXR5OjEiIC8+CiAgPC9nPgo8L3N2Zz4K&style=for-the-badge)](https://morphe.software) [![Documentation badge](https://img.shields.io/badge/Documentation-gray?style=for-the-badge&logo=github)](https://github.com/MorpheApp/morphe-documentation#readme) [![Guides badge](https://img.shields.io/badge/Guides-gray?style=for-the-badge&logo=bookstack&logoColor=white)](docs/README.md) [![Subreddit badge](https://img.shields.io/badge/Reddit-gray?style=for-the-badge&logo=reddit&logoColor=white)](https://www.reddit.com/r/MorpheApp) [![Crowdin badge](https://img.shields.io/badge/Translations-gray?style=for-the-badge&logo=crowdin)](https://morphe.software/translate)
+[![Releases badge](https://img.shields.io/badge/Releases-gray?style=for-the-badge&logo=github)](https://github.com/Desplicableme/morphe-manager/releases/latest) [![Documentation badge](https://img.shields.io/badge/Documentation-gray?style=for-the-badge&logo=github)](docs/README.md) [![Guides badge](https://img.shields.io/badge/Guides-gray?style=for-the-badge&logo=bookstack&logoColor=white)](docs/README.md) [![Issues badge](https://img.shields.io/badge/Issues-gray?style=for-the-badge&logo=github)](https://github.com/Desplicableme/morphe-manager/issues)
 <br>
 </div>
 
 &nbsp;
 <p align="center">
-  <a href="https://morphe.software" title="Download Morphe">
-    <img src="https://raw.githubusercontent.com/MorpheApp/.github/refs/heads/main/profile/assets/download-morphe.svg" alt="Download Morphe" width="240"/>
+  <a href="https://github.com/Desplicableme/morphe-manager/releases/latest" title="Download Morphe Enhanced Edition">
+    <img src="https://raw.githubusercontent.com/MorpheApp/.github/refs/heads/main/profile/assets/download-morphe.svg" alt="Download Morphe Enhanced Edition" width="240"/>
   </a>
 </p>
 &nbsp;
@@ -53,15 +53,15 @@
 
 Modern apps are full of ads and dark patterns designed to grab your attention. Morphe patches them at the bytecode level - modifying the app directly on your device, without any of your data leaving it. The result is a cleaner version of the app you already know, exactly the way you want it.
 
-## 📲 Download
+## 📲 Download Enhanced Edition
 
-**[→ Download at morphe.software](https://morphe.software)**
+**[→ Download Latest APK from GitHub Releases](https://github.com/Desplicableme/morphe-manager/releases/latest)**
 
-The website will guide you to the latest release for your device. No account needed.
+Download the pre-compiled, signed `morphe-manager-2.0.0-enhanced.apk` from the Releases section. No account needed.
 
 ## 🚀 How it works
 
-1. **Install Morphe** from [morphe.software](https://morphe.software).
+1. **Install Morphe Enhanced Edition** from [GitHub Releases](https://github.com/Desplicableme/morphe-manager/releases/latest).
 2. **Pick an app** - YouTube, YouTube Music, or Reddit are supported out of the box.
 3. **Choose your mode:**
     - **Simple mode** - designed for a one-tap experience. Just tap Patch and Morphe handles the rest with sensible defaults. No configuration needed.
@@ -149,14 +149,14 @@ Step-by-step walkthroughs with screenshots, covering patching in both modes, ins
 
 If you ended up here but aren't sure what to do next - no worries. Here's the short version:
 
-1. Go to the **[Releases page](https://github.com/MorpheApp/morphe-manager/releases/latest)**.
-2. Under **Assets**, tap the file ending in `.apk` to download it.
+1. Go to the **[Releases page](https://github.com/Desplicableme/morphe-manager/releases/latest)**.
+2. Under **Assets**, tap `morphe-manager-2.0.0-enhanced.apk` to download it.
 3. Open the downloaded file on your Android device and tap **Install**.
 4. If Android asks you to allow installs from unknown sources, follow the prompt to enable it - this is required for any app not from the Play Store.
 
 That's it. Once Morphe is installed, everything else happens inside the app - the **[guides](docs/README.md)** above walk you through the first patch.
 
-For FAQs and troubleshooting, visit **[morphe.software](https://morphe.software)** or join the community on **[Reddit](https://www.reddit.com/r/MorpheApp)**.
+For issues or questions regarding this enhanced edition, please open an issue on **[GitHub Issues](https://github.com/Desplicableme/morphe-manager/issues)**.
 
 ## 📙 Contributing
 
