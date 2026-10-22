@@ -58,7 +58,7 @@ class HeadlessApkMirrorVerifierTest {
         assertTrue(js.contains("a.downloadButton"))
         assertTrue(js.contains("a#download-link"))
         assertTrue(js.contains("""a[href*="download.php"]"""))
-        assertTrue(js.contains("btn.click()"))
+        assertTrue(js.contains(".click()"))
     }
 
     @Test

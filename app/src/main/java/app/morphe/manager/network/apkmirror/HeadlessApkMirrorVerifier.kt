@@ -59,9 +59,14 @@ object HeadlessApkMirrorVerifier {
 
     internal const val AUTO_CLICK_JS = """
         (function() {
-            var btn = document.querySelector('a#download-link, a.downloadButton, a[href*="download.php"], a[href$=".apk"]');
-            if (btn) {
-                btn.click();
+            var dlLink = document.querySelector('a#download-link, a[href*="download.php"]');
+            if (dlLink) {
+                dlLink.click();
+                return true;
+            }
+            var dlButton = document.querySelector('a.downloadButton, a.btn.downloadButton, a[href*="/download/?key="]');
+            if (dlButton) {
+                dlButton.click();
                 return true;
             }
             var links = document.querySelectorAll('a[href*="download.php"]');
@@ -134,7 +139,7 @@ object HeadlessApkMirrorVerifier {
     suspend fun verify(
         context: Context,
         verificationUrl: String,
-        timeoutMs: Long = 4000L
+        timeoutMs: Long = 10_000L
     ): HeadlessVerificationResult = withContext(Dispatchers.Main) {
         cleanup()
         val deferred = CompletableDeferred<HeadlessVerificationResult>()
@@ -231,8 +236,10 @@ object HeadlessApkMirrorVerifier {
                                 val clicked = clickResult == "true"
                                 if (clicked) {
                                     launch {
-                                        delay(800L)
-                                        deferred.complete(HeadlessVerificationResult.Success(null))
+                                        delay(1500L)
+                                        if (!deferred.isCompleted) {
+                                            deferred.complete(HeadlessVerificationResult.Success(null))
+                                        }
                                     }
                                 } else {
                                     deferred.complete(HeadlessVerificationResult.Success(null))
@@ -271,8 +278,10 @@ object HeadlessApkMirrorVerifier {
                                 val clicked = clickResult == "true"
                                 if (clicked) {
                                     launch {
-                                        delay(800L)
-                                        deferred.complete(HeadlessVerificationResult.Success(null))
+                                        delay(1500L)
+                                        if (!deferred.isCompleted) {
+                                            deferred.complete(HeadlessVerificationResult.Success(null))
+                                        }
                                     }
                                 } else {
                                     deferred.complete(HeadlessVerificationResult.Success(null))

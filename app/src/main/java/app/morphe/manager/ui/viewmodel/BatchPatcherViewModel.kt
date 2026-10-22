@@ -245,7 +245,7 @@ class BatchPatcherViewModel(
     var apkMirrorDownloadBytes by mutableStateOf(0L to 0L)
     var apkMirrorDownloadingItem: BatchPatchItem? by mutableStateOf(null)
     private var apkMirrorDownloadJob: kotlinx.coroutines.Job? = null
-    private var isHeadlessVerificationAttempted = false
+    private val headlessFailedUrls = mutableSetOf<String>()
     var showApkMirrorVerificationDialog by mutableStateOf(false)
     var apkMirrorVerificationUrl by mutableStateOf<String?>(null)
 
@@ -446,7 +446,7 @@ class BatchPatcherViewModel(
     fun cancelApkMirrorDownload() {
         apkMirrorDownloadJob?.cancel()
         apkMirrorDownloadJob = null
-        isHeadlessVerificationAttempted = false
+        headlessFailedUrls.clear()
         isApkMirrorDownloading = false
         apkMirrorDownloadProgress = null
         apkMirrorDownloadStatus = ""
@@ -469,7 +469,7 @@ class BatchPatcherViewModel(
         val url = overrideUrl ?: search?.url ?: downloadUrlResolver.apiSearchUrl(targetItem.packageName, version)
 
         if (!isHeadlessRetry) {
-            isHeadlessVerificationAttempted = false
+            headlessFailedUrls.clear()
         }
         apkSearch = null
         attachPrompt = null
@@ -519,7 +519,7 @@ class BatchPatcherViewModel(
                     }
                 )
 
-                isHeadlessVerificationAttempted = false
+                headlessFailedUrls.clear()
                 isApkMirrorDownloading = false
                 apkMirrorDownloadingItem = null
                 coordinator.attachApk(targetItem.id, downloadedFile)
@@ -529,9 +529,8 @@ class BatchPatcherViewModel(
                 apkMirrorDownloadingItem = null
             } catch (e: CloudflareVerificationException) {
                 Log.w(tag, "Batch item download encountered Cloudflare challenge: ${e.verificationUrl}")
-                if (!isHeadlessVerificationAttempted) {
-                    isHeadlessVerificationAttempted = true
-                    Log.i(tag, "Attempting headless verification for batch item ${e.verificationUrl}...")
+                if (!headlessFailedUrls.contains(e.verificationUrl)) {
+                    Log.i(tag, "Attempting background verification for batch item ${e.verificationUrl}...")
                     apkMirrorDownloadStatus = app.getString(R.string.home_download_inbuilt_bypassing_verification)
                     apkMirrorDownloadProgress = null
 
@@ -542,7 +541,7 @@ class BatchPatcherViewModel(
 
                     when (result) {
                         is HeadlessVerificationResult.Success -> {
-                            Log.i(tag, "Headless verification succeeded for batch item (directUrl=${result.directDownloadUrl})")
+                            Log.i(tag, "Background verification succeeded for batch item (directUrl=${result.directDownloadUrl})")
                             runCatching { CookieManager.getInstance().flush() }
                             if (!result.directDownloadUrl.isNullOrBlank()) {
                                 startInBuiltDirectDownload(
@@ -562,13 +561,14 @@ class BatchPatcherViewModel(
                         }
                         is HeadlessVerificationResult.RequiresInteraction,
                         is HeadlessVerificationResult.Failed -> {
-                            Log.w(tag, "Headless verification did not resolve ($result), falling back to dialog")
+                            Log.w(tag, "Background verification requires interaction ($result), marking failed for ${e.verificationUrl}")
+                            headlessFailedUrls.add(e.verificationUrl)
                         }
                     }
                 }
-                isHeadlessVerificationAttempted = false
                 isApkMirrorDownloading = false
                 apkMirrorVerificationUrl = e.verificationUrl
+                apkMirrorDownloadingItem = targetItem
                 showApkMirrorVerificationDialog = true
             } catch (e: Exception) {
                 Log.e(tag, "In-built download failed", e)
@@ -585,7 +585,7 @@ class BatchPatcherViewModel(
         isHeadlessRetry: Boolean = false
     ) {
         if (!isHeadlessRetry) {
-            isHeadlessVerificationAttempted = false
+            headlessFailedUrls.clear()
         }
         apkMirrorDownloadingItem = targetItem
         apkMirrorDownloadJob?.cancel()
@@ -627,7 +627,7 @@ class BatchPatcherViewModel(
                     }
                 )
 
-                isHeadlessVerificationAttempted = false
+                headlessFailedUrls.clear()
                 isApkMirrorDownloading = false
                 apkMirrorDownloadingItem = null
                 coordinator.attachApk(targetItem.id, downloadedFile)
@@ -637,9 +637,8 @@ class BatchPatcherViewModel(
                 apkMirrorDownloadingItem = null
             } catch (e: CloudflareVerificationException) {
                 Log.w(tag, "Cloudflare re-challenge on direct URL: ${e.verificationUrl}")
-                if (!isHeadlessVerificationAttempted) {
-                    isHeadlessVerificationAttempted = true
-                    Log.i(tag, "Attempting headless verification on direct URL ${e.verificationUrl}...")
+                if (!headlessFailedUrls.contains(e.verificationUrl)) {
+                    Log.i(tag, "Attempting background verification on direct URL ${e.verificationUrl}...")
                     apkMirrorDownloadStatus = app.getString(R.string.home_download_inbuilt_bypassing_verification)
                     apkMirrorDownloadProgress = null
 
@@ -650,7 +649,7 @@ class BatchPatcherViewModel(
 
                     when (result) {
                         is HeadlessVerificationResult.Success -> {
-                            Log.i(tag, "Headless verification succeeded for batch direct URL (directUrl=${result.directDownloadUrl})")
+                            Log.i(tag, "Background verification succeeded for batch direct URL (directUrl=${result.directDownloadUrl})")
                             runCatching { CookieManager.getInstance().flush() }
                             val resumeUrl = result.directDownloadUrl ?: directUrl
                             startInBuiltDirectDownload(
@@ -662,13 +661,14 @@ class BatchPatcherViewModel(
                         }
                         is HeadlessVerificationResult.RequiresInteraction,
                         is HeadlessVerificationResult.Failed -> {
-                            Log.w(tag, "Headless verification did not resolve ($result), falling back to dialog")
+                            Log.w(tag, "Background verification did not resolve ($result), marking failed for ${e.verificationUrl}")
+                            headlessFailedUrls.add(e.verificationUrl)
                         }
                     }
                 }
-                isHeadlessVerificationAttempted = false
                 isApkMirrorDownloading = false
                 apkMirrorVerificationUrl = e.verificationUrl
+                apkMirrorDownloadingItem = targetItem
                 showApkMirrorVerificationDialog = true
             } catch (e: Exception) {
                 Log.e(tag, "In-built direct download failed", e)
@@ -681,7 +681,7 @@ class BatchPatcherViewModel(
 
     fun onApkMirrorVerificationResolved(directUrl: String? = null) {
         showApkMirrorVerificationDialog = false
-        isHeadlessVerificationAttempted = false
+        headlessFailedUrls.clear()
         HeadlessApkMirrorVerifier.cleanup()
         val targetItem = apkMirrorDownloadingItem ?: return
         if (!directUrl.isNullOrBlank()) {
@@ -695,7 +695,7 @@ class BatchPatcherViewModel(
         showApkMirrorVerificationDialog = false
         apkMirrorVerificationUrl = null
         apkMirrorDownloadingItem = null
-        isHeadlessVerificationAttempted = false
+        headlessFailedUrls.clear()
         HeadlessApkMirrorVerifier.cleanup()
     }
 
