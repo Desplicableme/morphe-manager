@@ -319,6 +319,7 @@ Anything you add from this website is used at your own risk"</string>
     <string name="home_download_inbuilt_bundle">Download APK Bundle</string>
     <string name="home_download_inbuilt_title">Downloading %s</string>
     <string name="home_download_inbuilt_starting">Connecting to APKMirror…</string>
+    <string name="home_download_inbuilt_bypassing_verification">Bypassing verification…</string>
     <string name="home_download_inbuilt_processing">Processing downloaded APK…</string>
     <string name="home_download_inbuilt_failed">Download failed: %s</string>
     <string name="home_download_from_apkmirror">Download from APKMirror</string>

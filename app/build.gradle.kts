@@ -278,11 +278,11 @@ android {
             signingConfig = if (project.hasProperty("signAsDebug") || !keystoreFile.exists()) {
                 signingConfigs.getByName("debug")
             } else {
-                signingConfigs.create("release") {
+                signingConfigs.maybeCreate("release").apply {
                     storeFile = keystoreFile
-                    storePassword = System.getenv("KEYSTORE_PASSWORD")
-                    keyAlias = System.getenv("KEYSTORE_ENTRY_ALIAS")
-                    keyPassword = System.getenv("KEYSTORE_ENTRY_PASSWORD")
+                    storePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
+                    keyAlias = System.getenv("KEYSTORE_ENTRY_ALIAS") ?: ""
+                    keyPassword = System.getenv("KEYSTORE_ENTRY_PASSWORD") ?: ""
                 }
             }
 

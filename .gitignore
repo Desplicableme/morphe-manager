@@ -133,3 +133,7 @@ local.properties
 AGENT.md
 .gitignore
 to-do.txt
+
+# Signing keystores (keep secret, never commit publicly)
+*.jks
+*.keystore

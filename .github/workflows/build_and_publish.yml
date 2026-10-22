@@ -24,6 +24,7 @@ on:
       - '**.md'
       - 'docs/**'
       - '.gitignore'
+      - 'app-release.json'
 
 permissions:
   contents: write
@@ -106,11 +107,16 @@ jobs:
 
           TARGET_APK="release_assets/morphe-manager-${VERSION}-enhanced.apk"
           cp "$APK_FILE" "$TARGET_APK"
+          sha256sum "$TARGET_APK" > "${TARGET_APK}.sha256"
+
+          # Standard filename alias for broader compatibility
+          cp "$APK_FILE" "release_assets/morphe-manager-${VERSION}.apk"
+          sha256sum "release_assets/morphe-manager-${VERSION}.apk" > "release_assets/morphe-manager-${VERSION}.apk.sha256"
+
           echo "apk_path=$TARGET_APK" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-          sha256sum "$TARGET_APK" > "${TARGET_APK}.sha256"
-          echo "Prepared Release APK:"
+          echo "Prepared Release APKs:"
           ls -lh release_assets/
 
       - name: Upload APK as Workflow Artifact
@@ -173,3 +179,41 @@ jobs:
 
           echo "Release published successfully:"
           gh release view "$TAG"
+
+      - name: Update and Publish app-release.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.release_meta.outputs.tag }}
+          VERSION: ${{ steps.prepare_apk.outputs.version }}
+        run: |
+          echo "Updating app-release.json for release $TAG (version $VERSION)..."
+          python3 -c "
+          import json, datetime
+
+          try:
+              with open('app-release.json', 'r') as f:
+                  data = json.load(f)
+          except Exception:
+              data = {}
+
+          data['version'] = '$VERSION'
+          data['download_url'] = f'https://github.com/Desplicableme/morphe-manager/releases/download/{TAG}/morphe-manager-{VERSION}-enhanced.apk'
+          data['signature_download_url'] = f'https://github.com/Desplicableme/morphe-manager/releases/download/{TAG}/morphe-manager-{VERSION}-enhanced.apk.sha256'
+          data['created_at'] = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%S')
+
+          with open('app-release.json', 'w') as f:
+              json.dump(data, f, indent=2)
+          "
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app-release.json
+
+          if ! git diff --staged --quiet; then
+            git commit -m "chore: Update app-release.json for ${TAG} [skip ci]"
+            git pull --rebase origin main || true
+            git push origin HEAD:main || true
+            echo "app-release.json committed and pushed successfully."
+          else
+            echo "No changes detected in app-release.json."
+          fi
