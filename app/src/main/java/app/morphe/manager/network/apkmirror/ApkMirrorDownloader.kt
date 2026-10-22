@@ -573,115 +573,148 @@ class ApkMirrorDownloader(
             ?: error("Filesystem is required for downloadBinary")
         var targetFile: File? = null
 
-        try {
-            val cookies = getCookiesForUrl(downloadUrl)
-            val statement = client.prepareGet {
-                url(downloadUrl)
-                timeout { requestTimeoutMillis = HttpTimeoutConfig.INFINITE_TIMEOUT_MS }
-                header(HttpHeaders.UserAgent, BROWSER_USER_AGENT)
-                header(HttpHeaders.Referrer, referrer)
-                header(HttpHeaders.Accept, "*/*")
-                header(HttpHeaders.AcceptLanguage, "en-US,en;q=0.9")
-                if (!cookies.isNullOrBlank()) {
-                    header(HttpHeaders.Cookie, cookies)
-                }
-            }
+        var attempt = 0
+        val maxAttempts = 4
+        var delayMs = 2500L
 
-            return statement.execute { response ->
-                saveCookiesFromResponse(downloadUrl, response)
+        // APKMirror download.php tokens require a brief delay (~1.5s) from generation
+        if (downloadUrl.contains("download.php")) {
+            delay(1500.milliseconds)
+        }
 
-                if (response.status == HttpStatusCode.Forbidden || response.status == HttpStatusCode.ServiceUnavailable) {
-                    val verificationUrl = if (referrer.isNotBlank() && referrer != BASE_URL) referrer else downloadUrl
-                    throw CloudflareVerificationException(
-                        verificationUrl = verificationUrl,
-                        packageName = packageName,
-                        versionName = versionName,
-                        message = "APKMirror bot verification blocked download stream (HTTP ${response.status})."
-                    )
-                }
-
-                if (!response.status.isSuccess()) {
-                    throw IOException("APKMirror download server responded with HTTP ${response.status}")
-                }
-
-                val contentLength = response.headers[HttpHeaders.ContentLength]?.toLongOrNull()
-                val contentDisposition = response.headers[HttpHeaders.ContentDisposition]
-                val contentType = response.headers[HttpHeaders.ContentType]
-                val effectiveUrl = response.call.request.url.toString()
-
-                val extension = detectExtension(contentDisposition, effectiveUrl, contentType)
-                val safePackage = packageName.replace(Regex("[^a-zA-Z0-9._-]"), "_")
-                val safeVersion = versionName.replace(Regex("[^a-zA-Z0-9._-]"), "_")
-                val destination = tempFolder.resolve("${safePackage}_${safeVersion}_${System.currentTimeMillis()}.$extension")
-                targetFile = destination
-
-                val channel: ByteReadChannel = response.body()
-                val buffer = ByteArray(BUFFER_SIZE)
-                var bytesRead = 0L
-                var lastProgressTime = 0L
-                val startTime = System.currentTimeMillis()
-
-                FileOutputStream(destination).use { output ->
-                    while (!channel.isClosedForRead) {
-                        val read = channel.readAvailable(buffer)
-                        if (read < 0) break // EOF reached
-                        if (read == 0) continue
-                        output.write(buffer, 0, read)
-                        bytesRead += read
-
-                        val now = System.currentTimeMillis()
-                        if (now - lastProgressTime >= PROGRESS_INTERVAL_MS || bytesRead == contentLength) {
-                            lastProgressTime = now
-                            val elapsedSec = (now - startTime).coerceAtLeast(1) / 1000.0
-                            val speed = (bytesRead / elapsedSec).toLong()
-                            val progressFraction = if (contentLength != null && contentLength > 0) {
-                                (bytesRead.toFloat() / contentLength).coerceIn(0f, 1f)
-                            } else null
-
-                            onProgress(
-                                ApkMirrorDownloadProgress.Downloading(
-                                    bytesDownloaded = bytesRead,
-                                    totalBytes = contentLength,
-                                    progress = progressFraction,
-                                    speedBytesPerSec = speed
-                                )
-                            )
-                        }
+        while (true) {
+            attempt++
+            try {
+                val cookies = getCookiesForUrl(downloadUrl)
+                val statement = client.prepareGet {
+                    url(downloadUrl)
+                    timeout { requestTimeoutMillis = HttpTimeoutConfig.INFINITE_TIMEOUT_MS }
+                    header(HttpHeaders.UserAgent, BROWSER_USER_AGENT)
+                    header(HttpHeaders.Referrer, referrer)
+                    header(HttpHeaders.Accept, "*/*")
+                    header(HttpHeaders.AcceptLanguage, "en-US,en;q=0.9")
+                    if (!cookies.isNullOrBlank()) {
+                        header(HttpHeaders.Cookie, cookies)
                     }
-                    output.flush()
                 }
 
-                if (destination.length() == 0L) {
-                    destination.delete()
-                    throw IOException("Downloaded file is empty")
-                }
+                val downloaded = statement.execute { response ->
+                    saveCookiesFromResponse(downloadUrl, response)
 
-                // If APKMirror returned an HTML challenge instead of binary:
-                if (destination.length() < 100_000L) {
-                    val sample = runCatching { destination.readBytes().take(1024).toByteArray().decodeToString() }.getOrNull().orEmpty()
-                    if (sample.contains("<html", ignoreCase = true) || sample.contains("<!DOCTYPE", ignoreCase = true)) {
-                        destination.delete()
+                    if (response.status == HttpStatusCode.TooManyRequests) {
+                        if (attempt >= maxAttempts) {
+                            throw IOException("APKMirror download server rate limit exceeded (HTTP 429 Too Many Requests)")
+                        }
+                        val retryAfter = response.headers[HttpHeaders.RetryAfter]?.toLongOrNull()?.times(1000)
+                        val waitTime = (retryAfter ?: delayMs).coerceIn(2000L, 15_000L)
+                        val waitSec = (waitTime / 1000).coerceAtLeast(1)
+                        Log.w(tag, "APKMirror downloadBinary hit HTTP 429 on $downloadUrl, retrying in ${waitTime}ms (attempt $attempt/$maxAttempts)")
+                        onProgress(ApkMirrorDownloadProgress.Resolving("Waiting ${waitSec}s for download server…"))
+                        delay(waitTime.milliseconds)
+                        delayMs = (delayMs * 2).coerceAtMost(15_000L)
+                        return@execute null
+                    }
+
+                    if (response.status == HttpStatusCode.Forbidden || response.status == HttpStatusCode.ServiceUnavailable) {
                         val verificationUrl = if (referrer.isNotBlank() && referrer != BASE_URL) referrer else downloadUrl
-                        if (sample.contains("Cloudflare") || sample.contains("Turnstile") || sample.contains("Just a moment")) {
-                            throw CloudflareVerificationException(
-                                verificationUrl = verificationUrl,
-                                packageName = packageName,
-                                versionName = versionName,
-                                message = "APKMirror bot verification returned HTML challenge instead of binary."
-                            )
-                        }
-                        throw IOException("APKMirror returned HTML document instead of APK binary.")
+                        throw CloudflareVerificationException(
+                            verificationUrl = verificationUrl,
+                            packageName = packageName,
+                            versionName = versionName,
+                            message = "APKMirror bot verification blocked download stream (HTTP ${response.status})."
+                        )
                     }
+
+                    if (!response.status.isSuccess()) {
+                        throw IOException("APKMirror download server responded with HTTP ${response.status}")
+                    }
+
+                    val contentLength = response.headers[HttpHeaders.ContentLength]?.toLongOrNull()
+                    val contentDisposition = response.headers[HttpHeaders.ContentDisposition]
+                    val contentType = response.headers[HttpHeaders.ContentType]
+                    val effectiveUrl = response.call.request.url.toString()
+
+                    val extension = detectExtension(contentDisposition, effectiveUrl, contentType)
+                    val safePackage = packageName.replace(Regex("[^a-zA-Z0-9._-]"), "_")
+                    val safeVersion = versionName.replace(Regex("[^a-zA-Z0-9._-]"), "_")
+                    val destination = tempFolder.resolve("${safePackage}_${safeVersion}_${System.currentTimeMillis()}.$extension")
+                    targetFile = destination
+
+                    val channel: ByteReadChannel = response.body()
+                    val buffer = ByteArray(BUFFER_SIZE)
+                    var bytesRead = 0L
+                    var lastProgressTime = 0L
+                    val startTime = System.currentTimeMillis()
+
+                    FileOutputStream(destination).use { output ->
+                        while (!channel.isClosedForRead) {
+                            val read = channel.readAvailable(buffer)
+                            if (read < 0) break // EOF reached
+                            if (read == 0) continue
+                            output.write(buffer, 0, read)
+                            bytesRead += read
+
+                            val now = System.currentTimeMillis()
+                            if (now - lastProgressTime >= PROGRESS_INTERVAL_MS || bytesRead == contentLength) {
+                                lastProgressTime = now
+                                val elapsedSec = (now - startTime).coerceAtLeast(1) / 1000.0
+                                val speed = (bytesRead / elapsedSec).toLong()
+                                val progressFraction = if (contentLength != null && contentLength > 0) {
+                                    (bytesRead.toFloat() / contentLength).coerceIn(0f, 1f)
+                                } else null
+
+                                onProgress(
+                                    ApkMirrorDownloadProgress.Downloading(
+                                        bytesDownloaded = bytesRead,
+                                        totalBytes = contentLength,
+                                        progress = progressFraction,
+                                        speedBytesPerSec = speed
+                                    )
+                                )
+                            }
+                        }
+                        output.flush()
+                    }
+
+                    if (destination.length() == 0L) {
+                        destination.delete()
+                        throw IOException("Downloaded file is empty")
+                    }
+
+                    // If APKMirror returned an HTML challenge instead of binary:
+                    if (destination.length() < 100_000L) {
+                        val sample = runCatching { destination.readBytes().take(1024).toByteArray().decodeToString() }.getOrNull().orEmpty()
+                        if (sample.contains("<html", ignoreCase = true) || sample.contains("<!DOCTYPE", ignoreCase = true)) {
+                            destination.delete()
+                            val verificationUrl = if (referrer.isNotBlank() && referrer != BASE_URL) referrer else downloadUrl
+                            if (sample.contains("Cloudflare") || sample.contains("Turnstile") || sample.contains("Just a moment")) {
+                                throw CloudflareVerificationException(
+                                    verificationUrl = verificationUrl,
+                                    packageName = packageName,
+                                    versionName = versionName,
+                                    message = "APKMirror bot verification returned HTML challenge instead of binary."
+                                )
+                            }
+                            throw IOException("APKMirror returned HTML document instead of APK binary.")
+                        }
+                    }
+
+                    val isBundle = extension in BUNDLE_EXTENSIONS
+                    onProgress(ApkMirrorDownloadProgress.Completed(destination, isBundle))
+                    destination
                 }
 
-                val isBundle = extension in BUNDLE_EXTENSIONS
-                onProgress(ApkMirrorDownloadProgress.Completed(destination, isBundle))
-                destination
+                if (downloaded != null) {
+                    return downloaded
+                }
+            } catch (e: Throwable) {
+                targetFile?.delete()
+                if (e is CancellationException || e is CloudflareVerificationException) throw e
+                if (attempt >= maxAttempts) throw IOException("APK download failed: ${e.message}", e)
+                Log.w(tag, "downloadBinary encountered error on attempt $attempt/$maxAttempts: ${e.message}, retrying...")
+                delay(delayMs.milliseconds)
+                delayMs = (delayMs * 2).coerceAtMost(15_000L)
             }
-        } catch (e: Throwable) {
-            targetFile?.delete()
-            if (e is CancellationException || e is CloudflareVerificationException) throw e
-            throw IOException("APK download failed: ${e.message}", e)
         }
     }
 
@@ -690,8 +723,8 @@ class ApkMirrorDownloader(
      */
     private suspend fun fetchHtml(url: String, referrer: String = BASE_URL): String {
         var attempt = 0
-        var delayMs = 1500L
-        val maxAttempts = 3
+        var delayMs = 2000L
+        val maxAttempts = 4
 
         while (true) {
             attempt++
@@ -864,7 +897,7 @@ class ApkMirrorDownloader(
             "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36"
         private const val BUFFER_SIZE = 64 * 1024
         private const val PROGRESS_INTERVAL_MS = 150L
-        private const val INTER_HOP_DELAY_MS = 600L
+        private const val INTER_HOP_DELAY_MS = 1200L
 
         fun isDirectDownloadUrl(url: String): Boolean =
             url.contains("download.php") ||
