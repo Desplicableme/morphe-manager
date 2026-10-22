@@ -70,6 +70,10 @@ class ManagerApplication : Application() {
         @Volatile var resumedActivityCount: Int = 0
             private set
 
+        /** The currently active foreground Activity (usually MainActivity), or null if backgrounded. */
+        @Volatile var currentActivity: Activity? = null
+            private set
+
         /** True while a Morphe screen is in focus, so a result needs no notification. */
         val isInForeground: Boolean get() = resumedActivityCount > 0
 
@@ -228,6 +232,7 @@ class ManagerApplication : Application() {
 
             override fun onActivityStarted(activity: Activity) {}
             override fun onActivityResumed(activity: Activity) {
+                currentActivity = activity
                 resumedActivityCount++
                 updateNotificationManager.cancelPatchingResultNotifications()
                 onReturnToForeground?.let {
@@ -235,10 +240,23 @@ class ManagerApplication : Application() {
                     it()
                 }
             }
-            override fun onActivityPaused(activity: Activity) { resumedActivityCount-- }
-            override fun onActivityStopped(activity: Activity) {}
+            override fun onActivityPaused(activity: Activity) {
+                if (currentActivity === activity) {
+                    currentActivity = null
+                }
+                resumedActivityCount--
+            }
+            override fun onActivityStopped(activity: Activity) {
+                if (currentActivity === activity) {
+                    currentActivity = null
+                }
+            }
             override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
-            override fun onActivityDestroyed(activity: Activity) {}
+            override fun onActivityDestroyed(activity: Activity) {
+                if (currentActivity === activity) {
+                    currentActivity = null
+                }
+            }
         })
     }
 

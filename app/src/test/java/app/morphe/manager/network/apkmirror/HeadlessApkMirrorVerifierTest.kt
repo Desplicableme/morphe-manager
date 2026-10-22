@@ -76,4 +76,13 @@ class HeadlessApkMirrorVerifierTest {
         val failed = HeadlessVerificationResult.Failed(exception)
         assertEquals(exception, failed.cause)
     }
+
+    @Test
+    fun `active webview lifecycle methods handle null states safely`() {
+        HeadlessApkMirrorVerifier.cleanup()
+        assertFalse(HeadlessApkMirrorVerifier.hasActiveWebView())
+        assertNull(HeadlessApkMirrorVerifier.takeActiveWebView())
+        HeadlessApkMirrorVerifier.cleanup()
+        assertFalse(HeadlessApkMirrorVerifier.hasActiveWebView())
+    }
 }

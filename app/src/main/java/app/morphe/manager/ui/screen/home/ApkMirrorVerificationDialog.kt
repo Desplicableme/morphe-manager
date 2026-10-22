@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import app.morphe.manager.R
 import app.morphe.manager.network.apkmirror.ApkMirrorDownloader
+import app.morphe.manager.network.apkmirror.HeadlessApkMirrorVerifier
 import app.morphe.manager.ui.screen.shared.*
 import com.composables.icons.materialsymbols.MaterialSymbols
 import com.composables.icons.materialsymbols.rounded.Check
@@ -35,6 +36,9 @@ import com.composables.icons.materialsymbols.rounded.Close
  *
  * Renders an embedded browser dialog allowing the user to complete verification prompts
  * or initiate the download without needing to switch back and forth to an external browser.
+ *
+ * If background bypass required user interaction, reuses the active [WebView] instance directly
+ * so the challenge page does not need to be reloaded from scratch.
  *
  * Once verified by the user or when a download link is triggered, captures cookies into [CookieManager]
  * and returns the direct download stream to Morphe's in-built download and patching pipeline.
@@ -58,13 +62,22 @@ internal fun DialogHostScope.ApkMirrorVerificationDialog(
 
     DisposableEffect(Unit) {
         onDispose {
-            webViewRef?.destroy()
+            webViewRef?.apply {
+                (parent as? ViewGroup)?.removeView(this)
+                stopLoading()
+                loadUrl("about:blank")
+                destroy()
+            }
             webViewRef = null
+            HeadlessApkMirrorVerifier.cleanup()
         }
     }
 
     AppDialog(
-        onDismissRequest = onDismissRequest,
+        onDismissRequest = {
+            HeadlessApkMirrorVerifier.cleanup()
+            onDismissRequest()
+        },
         accentColor = accentColor,
         title = stringResource(R.string.home_download_inbuilt_verification_title),
         description = stringResource(R.string.home_download_inbuilt_verification_description),
@@ -90,7 +103,10 @@ internal fun DialogHostScope.ApkMirrorVerificationDialog(
 
                 AppDialogOutlinedButton(
                     text = stringResource(android.R.string.cancel),
-                    onClick = onDismissRequest,
+                    onClick = {
+                        HeadlessApkMirrorVerifier.cleanup()
+                        onDismissRequest()
+                    },
                     icon = MaterialSymbols.Rounded.Close,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -109,7 +125,8 @@ internal fun DialogHostScope.ApkMirrorVerificationDialog(
             Box(modifier = Modifier.fillMaxSize()) {
                 AndroidView(
                     factory = { ctx ->
-                        WebView(ctx).apply {
+                        val existing = HeadlessApkMirrorVerifier.takeActiveWebView()
+                        val wv = existing ?: WebView(ctx).apply {
                             layoutParams = ViewGroup.LayoutParams(
                                 ViewGroup.LayoutParams.MATCH_PARENT,
                                 ViewGroup.LayoutParams.MATCH_PARENT
@@ -126,66 +143,62 @@ internal fun DialogHostScope.ApkMirrorVerificationDialog(
                                 cookieManager.setAcceptCookie(true)
                                 cookieManager.setAcceptThirdPartyCookies(this@apply, true)
                             }
-                            setDownloadListener { url, _, _, _, _ ->
-                                runCatching { CookieManager.getInstance().flush() }
-                                onDownloadReady(url)
-                            }
-                            webViewClient = object : WebViewClient() {
-                                override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                                    val reqUrl = request?.url?.toString() ?: return false
-                                    if (ApkMirrorDownloader.isDirectDownloadUrl(reqUrl)) {
-                                        runCatching { CookieManager.getInstance().flush() }
-                                        onDownloadReady(reqUrl)
-                                        return true
-                                    }
-                                    return false
-                                }
-
-                                override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                                    super.onPageStarted(view, url, favicon)
-                                    isLoading = true
-                                }
-
-                                override fun onPageFinished(view: WebView?, url: String?) {
-                                    super.onPageFinished(view, url)
-                                    isLoading = false
-                                    val title = view?.title.orEmpty()
-                                    val cookies = runCatching {
-                                        CookieManager.getInstance().getCookie("https://www.apkmirror.com").orEmpty()
-                                    }.getOrDefault("")
-                                    val hasCfClearance = cookies.contains("cf_clearance")
-                                    val isChallengeTitle = title.contains("Just a moment", ignoreCase = true) ||
-                                        title.contains("Cloudflare", ignoreCase = true) ||
-                                        title.contains("Attention Required", ignoreCase = true)
-                                    val isChallengeUrl = url?.contains("challenges.cloudflare.com") == true ||
-                                        url?.contains("cf-mitigated") == true
-
-                                    val isContentPage = url?.contains("apkmirror.com") == true && !isChallengeTitle && !isChallengeUrl
-
-                                    if (hasCfClearance || isContentPage) {
-                                        isSolved = true
-                                        runCatching { CookieManager.getInstance().flush() }
-
-                                        // Try auto-clicking download button if present
-                                        view?.evaluateJavascript(
-                                            """
-                                            (function() {
-                                                var btn = document.querySelector('a.downloadButton, a#download-link, a[href*="download.php"]');
-                                                if (btn) {
-                                                    btn.click();
-                                                    return true;
-                                                }
-                                                return false;
-                                            })();
-                                            """.trimIndent(),
-                                            null
-                                        )
-                                    }
-                                }
-                            }
-                            webViewRef = this
-                            loadUrl(verificationUrl)
                         }
+
+                        wv.setDownloadListener { url, _, _, _, _ ->
+                            runCatching { CookieManager.getInstance().flush() }
+                            onDownloadReady(url)
+                        }
+
+                        wv.webViewClient = object : WebViewClient() {
+                            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                                val reqUrl = request?.url?.toString() ?: return false
+                                if (ApkMirrorDownloader.isDirectDownloadUrl(reqUrl)) {
+                                    runCatching { CookieManager.getInstance().flush() }
+                                    onDownloadReady(reqUrl)
+                                    return true
+                                }
+                                return false
+                            }
+
+                            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                                super.onPageStarted(view, url, favicon)
+                                isLoading = true
+                            }
+
+                            override fun onPageFinished(view: WebView?, url: String?) {
+                                super.onPageFinished(view, url)
+                                isLoading = false
+                                val title = view?.title.orEmpty()
+                                val cookies = runCatching {
+                                    CookieManager.getInstance().getCookie("https://www.apkmirror.com").orEmpty()
+                                }.getOrDefault("")
+                                val hasCfClearance = cookies.contains("cf_clearance")
+                                val isChallenge = HeadlessApkMirrorVerifier.isChallenge(title, url.orEmpty())
+                                val isContentPage = HeadlessApkMirrorVerifier.isContentPage(title, url.orEmpty())
+
+                                if (hasCfClearance || isContentPage) {
+                                    isSolved = true
+                                    runCatching { CookieManager.getInstance().flush() }
+                                    view?.evaluateJavascript(HeadlessApkMirrorVerifier.AUTO_CLICK_JS, null)
+                                }
+                            }
+                        }
+
+                        if (existing != null) {
+                            isLoading = existing.progress < 100
+                            val currentCookies = runCatching {
+                                CookieManager.getInstance().getCookie("https://www.apkmirror.com").orEmpty()
+                            }.getOrDefault("")
+                            if (currentCookies.contains("cf_clearance")) {
+                                isSolved = true
+                            }
+                        } else {
+                            wv.loadUrl(verificationUrl)
+                        }
+
+                        webViewRef = wv
+                        wv
                     },
                     modifier = Modifier.fillMaxSize()
                 )

@@ -1763,11 +1763,13 @@ class PatchFlow(
         isApkMirrorDownloading = false
         apkMirrorDownloadProgress = null
         apkMirrorDownloadStatus = ""
+        HeadlessApkMirrorVerifier.cleanup()
     }
 
     fun onApkMirrorVerificationResolved(directUrl: String? = null) {
         showApkMirrorVerificationDialog = false
         isHeadlessVerificationAttempted = false
+        HeadlessApkMirrorVerifier.cleanup()
         val pkg = session?.packageName ?: apkMirrorVerificationPackage ?: return
         val version = session?.requestedVersion
 
@@ -1783,6 +1785,7 @@ class PatchFlow(
         apkMirrorVerificationUrl = null
         apkMirrorVerificationPackage = null
         isHeadlessVerificationAttempted = false
+        HeadlessApkMirrorVerifier.cleanup()
         endRun()
     }
 

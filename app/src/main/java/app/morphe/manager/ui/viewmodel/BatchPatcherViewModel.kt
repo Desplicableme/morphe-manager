@@ -451,6 +451,7 @@ class BatchPatcherViewModel(
         apkMirrorDownloadProgress = null
         apkMirrorDownloadStatus = ""
         apkMirrorDownloadingItem = null
+        HeadlessApkMirrorVerifier.cleanup()
     }
 
     /**
@@ -681,6 +682,7 @@ class BatchPatcherViewModel(
     fun onApkMirrorVerificationResolved(directUrl: String? = null) {
         showApkMirrorVerificationDialog = false
         isHeadlessVerificationAttempted = false
+        HeadlessApkMirrorVerifier.cleanup()
         val targetItem = apkMirrorDownloadingItem ?: return
         if (!directUrl.isNullOrBlank()) {
             startInBuiltDirectDownload(directUrl, targetItem)
@@ -694,6 +696,7 @@ class BatchPatcherViewModel(
         apkMirrorVerificationUrl = null
         apkMirrorDownloadingItem = null
         isHeadlessVerificationAttempted = false
+        HeadlessApkMirrorVerifier.cleanup()
     }
 
     override val helperSignatureCheckAvailable: Boolean
