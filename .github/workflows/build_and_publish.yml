@@ -184,7 +184,10 @@ jobs:
         run: |
           echo "Updating app-release.json for release $TAG (version $VERSION)..."
           python3 -c "
-          import json, datetime
+          import os, json, datetime
+
+          tag = os.environ.get('TAG', 'v2.0.0-enhanced')
+          version = os.environ.get('VERSION', '2.0.0')
 
           try:
               with open('app-release.json', 'r') as f:
@@ -192,9 +195,9 @@ jobs:
           except Exception:
               data = {}
 
-          data['version'] = '$VERSION'
-          data['download_url'] = f'https://github.com/Desplicableme/morphe-manager/releases/download/{TAG}/morphe-manager-{VERSION}-enhanced.apk'
-          data['signature_download_url'] = f'https://github.com/Desplicableme/morphe-manager/releases/download/{TAG}/morphe-manager-{VERSION}-enhanced.apk.sha256'
+          data['version'] = version
+          data['download_url'] = f'https://github.com/Desplicableme/morphe-manager/releases/download/{tag}/morphe-manager-{version}-enhanced.apk'
+          data['signature_download_url'] = f'https://github.com/Desplicableme/morphe-manager/releases/download/{tag}/morphe-manager-{version}-enhanced.apk.sha256'
           data['created_at'] = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%S')
 
           with open('app-release.json', 'w') as f:
