@@ -30,6 +30,11 @@ private data class Contributor(
 
 private val currentContributors = listOf(
     Contributor(
+        name = "Arka Mandal",
+        organisation = "Desplicableme",
+        url = "https://github.com/Desplicableme"
+    ),
+    Contributor(
         name = "Morphe",
         organisation = "MorpheApp",
         url = "https://github.com/MorpheApp/morphe-manager/graphs/contributors"

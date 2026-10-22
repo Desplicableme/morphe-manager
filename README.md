@@ -165,7 +165,8 @@ You can find the contribution guidelines [here](CONTRIBUTING.md).
 
 ## ❗ About
 
-Morphe is built on the foundation of [ReVanced Manager](https://github.com/ReVanced/revanced-manager) and [URV](https://github.com/Jman-Github/Universal-ReVanced-Manager). All changes made by Morphe are documented in the Git history.
+* **Enhanced Edition Lead Developer:** [Arka Mandal](https://github.com/Desplicableme)
+* **Upstream Project:** Morphe is built on the foundation of [Morphe](https://github.com/MorpheApp/morphe-manager), [ReVanced Manager](https://github.com/ReVanced/revanced-manager), and [URV](https://github.com/Jman-Github/Universal-ReVanced-Manager). All changes made in this repository are documented in the Git history.
 
 ## 📜 License
 
